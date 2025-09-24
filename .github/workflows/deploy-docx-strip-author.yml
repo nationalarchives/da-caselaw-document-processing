@@ -1,0 +1,36 @@
+name: Deploy DOCX Strip Author Lambda to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+      - uses: aws-actions/setup-sam@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_STAGING_ROLE_ARN }}
+          aws-region: eu-west-2
+      - run: sam build --use-container -m lambda_strip_docx/requirements.txt
+      - run: >
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name da-caselaw-docx-strip-author --s3-bucket ingester-test-2 --capabilities CAPABILITY_IAM --region eu-west-2 --parameter-overrides
+          AwsBucketName=${{ vars.PRIVATE_ASSET_BUCKET }}
+          PublicAssetBucket=${{ vars.PUBLIC_ASSET_BUCKET }}
+          RollbarEnv=${{ vars.ROLLBAR_ENV }}
+          RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
+          VpcSubnetId0=${{ vars.VPC_SUBNET_ID_0 }}
+          VpcSubnetId1=${{ vars.VPC_SUBNET_ID_1 }}
+          VpcSubnetId2=${{ vars.VPC_SUBNET_ID_2 }}
+          VpcSecurityGroupId=${{ vars.VPC_SECURITY_GROUP_ID }}
