@@ -1,0 +1,15 @@
+{
+  "Records": [
+    {
+      "eventID": "example-event-id",
+      "s3": {
+        "bucket": {
+          "name": "example-bucket"
+        },
+        "object": {
+          "key": "sample_with_author.docx"
+        }
+      }
+    }
+  ]
+}
