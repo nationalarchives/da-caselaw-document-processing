@@ -3,9 +3,7 @@ import logging
 import tempfile
 from zipfile import ZipFile, BadZipFile
 import lxml.etree
-
-default_logger = logging.getLogger()
-default_logger.setLevel(logging.INFO)
+import base64
 
 REDACTION_STRING = ""
 namespaces = {
@@ -17,40 +15,37 @@ namespaces = {
 forbidden_attributes = ["w15:author", "w15:userId", "w:author"]
 forbidden_tags = ["cp:lastModifiedBy", "dc:creator"]
 
-def strip_docx_author_metadata(input_bytes, logger=default_logger):
+def strip_docx_author_metadata(input_bytes: bytes) -> bytes:
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input.docx")
         output_path = os.path.join(tmpdir, "output.docx")
         with open(input_path, "wb") as f:
             f.write(input_bytes)
-        try:
-            with ZipFile(input_path, "r") as archive_input, ZipFile(output_path, "w") as archive_output:
-                for archive_filename in archive_input.namelist():
-                    with archive_input.open(archive_filename, "r") as f:
-                        xml = f.read()
-                        try:
-                            root = lxml.etree.fromstring(xml)
-                            for attribute in forbidden_attributes:
-                                attribute_namespace, _, attribute_name = attribute.partition(":")
-                                for node in root.xpath(f"//*[@{attribute}]", namespaces=namespaces):
-                                    node.attrib[f"{{{namespaces[attribute_namespace]}}}{attribute_name}"] = REDACTION_STRING
-                            for tag in forbidden_tags:
-                                for node in root.xpath(f"//{tag}", namespaces=namespaces):
-                                    if node.text is not None:
-                                        node.text = REDACTION_STRING
-                            output_xml = lxml.etree.tostring(root)
-                            archive_output.writestr(archive_filename, output_xml)
-                        except lxml.etree.XMLSyntaxError:
-                            archive_output.writestr(archive_filename, xml)
-            with open(output_path, "rb") as f:
-                return f.read()
-        except BadZipFile:
-            logger.error("Input file is not a valid DOCX (zip) file.")
-            raise
+
+        with ZipFile(input_path, "r") as archive_input, ZipFile(output_path, "w") as archive_output:
+            for archive_filename in archive_input.namelist():
+                with archive_input.open(archive_filename, "r") as f:
+                    xml = f.read()
+                    try:
+                        root = lxml.etree.fromstring(xml)
+                        for attribute in forbidden_attributes:
+                            attribute_namespace, _, attribute_name = attribute.partition(":")
+                            for node in root.xpath(f"//*[@{attribute}]", namespaces=namespaces):
+                                node.attrib[f"{{{namespaces[attribute_namespace]}}}{attribute_name}"] = REDACTION_STRING
+                        for tag in forbidden_tags:
+                            for node in root.xpath(f"//{tag}", namespaces=namespaces):
+                                if node.text is not None:
+                                    node.text = REDACTION_STRING
+                        output_xml = lxml.etree.tostring(root)
+                        archive_output.writestr(archive_filename, output_xml)
+                    except lxml.etree.XMLSyntaxError:
+                        archive_output.writestr(archive_filename, xml)
+        with open(output_path, "rb") as f:
+            return f.read()
 
 def lambda_handler(event, context):
-    import base64
-    logger = default_logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
     try:
         file_content = base64.b64decode(event["body"])
         filename = event.get("headers", {}).get("filename", "document.docx")
@@ -60,8 +55,14 @@ def lambda_handler(event, context):
                 "statusCode": 400,
                 "body": "Unsupported file type. Only DOCX is supported."
             }
-        output_bytes = strip_docx_author_metadata(file_content, logger=logger)
-        logger.info(f"Successfully processed {filename}")
+        try:
+            output_bytes = strip_docx_author_metadata(file_content)
+        except BadZipFile:
+            logger.error("Input file is not a valid DOCX (zip) file.")
+            return {
+                "statusCode": 400,
+                "body": "Invalid DOCX file."
+            }
         return {
             "statusCode": 200,
             "isBase64Encoded": True,
