@@ -1,12 +1,9 @@
-from asyncio.log import logger
 import os
 import logging
 import io
-from zipfile import ZipFile, BadZipFile
+from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED
 import lxml.etree
-import base64
 import boto3
-import json
 from urllib.parse import unquote_plus
 
 REDACTION_STRING = ""
@@ -52,7 +49,7 @@ def strip_docx_author_metadata_from_docx(input_bytes: bytes) -> bytes:
     input_buffer = io.BytesIO(input_bytes)
     output_buffer = io.BytesIO()
 
-    with ZipFile(input_buffer, "r") as archive_input, ZipFile(output_buffer, "w") as archive_output:
+    with ZipFile(input_buffer, "r") as archive_input, ZipFile(output_buffer, "w", compression=ZIP_DEFLATED, compresslevel=6) as archive_output:
         for archive_filename in archive_input.namelist():
             with archive_input.open(archive_filename, "r") as f:
                 xml_content = f.read()

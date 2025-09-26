@@ -8,4 +8,4 @@ RUN pip install --upgrade pip && pip install -r requirements.txt --target "/var/
 COPY . /var/task/
 
 # Set the CMD to your handler (handler.lambda_handler)
-CMD ["handler.lambda_handler"]
+CMD ["lambda_function.lambda_handler"]
