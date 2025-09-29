@@ -1,5 +1,3 @@
-pip install pre-commit
-
 # DA Caselaw Document Processing
 
 This repository contains AWS Lambda functions and supporting code for document processing in the DA Caselaw project.
