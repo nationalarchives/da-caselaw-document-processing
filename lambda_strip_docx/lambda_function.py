@@ -6,6 +6,8 @@ import lxml.etree
 import boto3
 from urllib.parse import unquote_plus
 
+__version__="0.1.0-dev"
+
 REDACTION_STRING = ""
 NAMESPACES = {
     "cp": "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
@@ -62,6 +64,8 @@ def lambda_handler(event, context):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
+    # Get the document processor version
+    document_processor_version = __version__
     try:
         # Initialize S3 client
         s3 = boto3.client('s3')
@@ -100,7 +104,8 @@ def lambda_handler(event, context):
                     Bucket=bucket_name,
                     Key=output_key,
                     Body=output_bytes,
-                    ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Tagging=f'DOCUMENT_PROCESSOR_VERSION={document_processor_version}'
                 )
 
                 logger.info(f"Successfully processed and saved: {output_key}")

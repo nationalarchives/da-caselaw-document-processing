@@ -724,3 +724,26 @@ class TestLambdaHandler:
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         contents = response.get('Contents', [])
         assert len(contents) == 0, "No files should be created when Records key is missing"
+
+    def test_lambda_handler_sets_version_tag(self, s3_with_docx_file):
+        """Test lambda handler sets the document processor version tag on processed files"""
+        from lambda_function import __version__
+
+        s3_client, bucket_name, object_key = s3_with_docx_file
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Verify the processed file was uploaded with version tag
+        processed_key = "sample_with_author_processed.docx"
+
+        # Get the object tagging
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=processed_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
+
+        # Check that the version tag is set correctly
+        assert 'DOCUMENT_PROCESSOR_VERSION' in tags, "Version tag should be present on processed file"
+        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"Version tag should be {__version__}, but was {tags.get('DOCUMENT_PROCESSOR_VERSION')}"
