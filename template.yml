@@ -35,7 +35,6 @@ Parameters:
     Description: "VPC Security Group ID"
     Type: "String"
 
-
 Resources:
   TNACaselawDocxStripAuthorFunctionZip:
     Type: AWS::Serverless::Function

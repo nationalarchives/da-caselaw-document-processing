@@ -12,6 +12,7 @@ Removes author and related metadata from Microsoft Word DOCX files to ensure pri
 **Location:** `lambda_strip_docx/`
 
 **Key features:**
+
 - Accepts DOCX files as input (base64-encoded via API Gateway or S3 event).
 - Removes author metadata from document properties.
 - Preserves document content and formatting.
@@ -45,8 +46,6 @@ sam deploy --guided
 - See `.github/workflows/deploy-docx-strip-author.yml` for the CI/CD pipeline
 - See `template.yml` for the complete AWS SAM template defining both deployment options
 
-
-
 ### Local Development, Testing, and Deployment
 
 #### 1. Python Environment
@@ -65,7 +64,6 @@ Install the required dependencies for the DOCX Lambda:
 ```sh
 pip install -r lambda_strip_docx/requirements.txt
 ```
-
 
 #### 3. Run Unit Tests
 
@@ -119,14 +117,11 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-
 #### 6. Making Changes & Pull Requests
 
 - Ensure all tests pass locally before opening a PR.
 - Follow repo and code style guidelines.
 - Document any new environment variables or requirements in the README.
-
-
 
 #### 7. Development Guidelines
 
