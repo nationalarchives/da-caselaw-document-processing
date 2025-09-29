@@ -747,3 +747,106 @@ class TestLambdaHandler:
         # Check that the version tag is set correctly
         assert 'DOCUMENT_PROCESSOR_VERSION' in tags, "Version tag should be present on processed file"
         assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"Version tag should be {__version__}, but was {tags.get('DOCUMENT_PROCESSOR_VERSION')}"
+
+    def test_lambda_handler_skips_already_processed_files(self, s3_setup, input_bytes):
+        """Test lambda handler skips files that have already been processed with the current version"""
+        from lambda_function import __version__
+
+        s3_client, bucket_name = s3_setup
+        object_key = "already_processed.docx"
+
+        # Upload a DOCX file with the current version tag (simulating already processed file)
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=input_bytes,
+            ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            Tagging=f'DOCUMENT_PROCESSOR_VERSION={__version__}'
+        )
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Verify no new processed file was created (since it was already processed)
+        response = s3_client.list_objects_v2(Bucket=bucket_name)
+        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
+
+        # Should only have the original file, no processed version
+        assert object_key in object_keys, "Original file should still exist"
+        processed_key = "already_processed_processed.docx"
+        assert processed_key not in object_keys, f"No new processed file should be created, but found {processed_key}"
+
+        # Verify we only have 1 file total (the original)
+        assert len(object_keys) == 1, f"Should only have 1 file (the original), but found {len(object_keys)}: {object_keys}"
+
+    def test_lambda_handler_processes_files_with_different_version(self, s3_setup, input_bytes):
+        """Test lambda handler processes files that have a different version tag"""
+        from lambda_function import __version__
+
+        s3_client, bucket_name = s3_setup
+        object_key = "old_version.docx"
+        old_version = "0.0.9-old"  # Different from current version
+
+        # Upload a DOCX file with an old version tag (simulating file processed with older version)
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=input_bytes,
+            ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            Tagging=f'DOCUMENT_PROCESSOR_VERSION={old_version}'
+        )
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Verify a new processed file was created (since version was different)
+        response = s3_client.list_objects_v2(Bucket=bucket_name)
+        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
+
+        processed_key = "old_version_processed.docx"
+        assert processed_key in object_keys, f"Processed file {processed_key} should be created for different version"
+
+        # Verify the new processed file has the current version tag
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=processed_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
+        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"New processed file should have current version {__version__}"
+
+    def test_lambda_handler_processes_files_without_version_tag(self, s3_setup, input_bytes):
+        """Test lambda handler processes files that have no version tag"""
+        from lambda_function import __version__
+
+        s3_client, bucket_name = s3_setup
+        object_key = "no_version_tag.docx"
+
+        # Upload a DOCX file without any version tag (simulating unprocessed file)
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=input_bytes,
+            ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            # No Tagging parameter - file has no tags
+        )
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Verify a processed file was created (since there was no version tag)
+        response = s3_client.list_objects_v2(Bucket=bucket_name)
+        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
+
+        processed_key = "no_version_tag_processed.docx"
+        assert processed_key in object_keys, f"Processed file {processed_key} should be created when no version tag exists"
+
+        # Verify the processed file has the current version tag
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=processed_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
+        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"Processed file should have current version {__version__}"

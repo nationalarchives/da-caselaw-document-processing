@@ -84,6 +84,13 @@ def lambda_handler(event, context):
                     logger.warning(f"Skipping non-DOCX file: {object_key}")
                     continue
 
+                # Check if the file has already been processed
+                tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
+                tags = {tag['Key']: tag['Value'] for tag in tags_response.get('TagSet', [])}
+                if 'DOCUMENT_PROCESSOR_VERSION' in tags and tags['DOCUMENT_PROCESSOR_VERSION'] == document_processor_version:
+                    logger.info(f"File {object_key} has already been processed. Skipping.")
+                    continue
+
                 # Read the file from S3
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)
                 file_content = response['Body'].read()
