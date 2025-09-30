@@ -5,7 +5,7 @@ from moto import mock_aws
 from zipfile import ZipFile
 import io
 import re
-from lambda_function import strip_docx_author_metadata_from_docx, lambda_handler
+from lambda_function import strip_docx_author_metadata_from_docx, lambda_handler, __version__
 
 def load_docx_bytes(filename):
     with open(filename, "rb") as f:
@@ -203,9 +203,6 @@ class TestAssertDocxMetadataIsStripped:
 
     def create_mock_docx_with_author_in_core(self, author_name="John Doe"):
         """Create a minimal DOCX with author in core metadata"""
-        from zipfile import ZipFile
-        import io
-
         # Create a minimal DOCX structure with author metadata
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, 'w') as zf:
@@ -253,9 +250,6 @@ class TestAssertDocxMetadataIsStripped:
 
     def create_mock_docx_with_document_author_attributes(self, author="Jane Smith", initials="JS"):
         """Create a minimal DOCX with author attributes in document.xml"""
-        from zipfile import ZipFile
-        import io
-
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, 'w') as zf:
             # Content Types
@@ -312,9 +306,6 @@ class TestAssertDocxMetadataIsStripped:
 
     def create_mock_docx_with_comments(self, author="Bob Wilson", initials="BW"):
         """Create a minimal DOCX with comments containing author information"""
-        from zipfile import ZipFile
-        import io
-
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, 'w') as zf:
             # Content Types
@@ -380,9 +371,6 @@ class TestAssertDocxMetadataIsStripped:
 
     def create_clean_docx(self):
         """Create a properly cleaned DOCX with no author metadata"""
-        from zipfile import ZipFile
-        import io
-
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, 'w') as zf:
             # Content Types
@@ -505,9 +493,6 @@ class TestAssertDocxMetadataIsStripped:
 
     def test_requires_meaningful_text_content(self):
         """Test that assertion requires the document to have meaningful text content"""
-        from zipfile import ZipFile
-        import io
-
         # Create DOCX with clean metadata but no meaningful text
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, 'w') as zf:
@@ -544,9 +529,6 @@ class TestAssertDocxMetadataIsStripped:
 
     def test_validates_core_xml_tags_are_empty_not_missing(self):
         """Test that assertion requires core metadata tags to be empty, not missing"""
-        from zipfile import ZipFile
-        import io
-
         # Create DOCX with missing core metadata tags
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, 'w') as zf:
@@ -581,8 +563,8 @@ class TestAssertDocxMetadataIsStripped:
 
 class TestLambdaHandler:
     """Tests for the lambda_handler function"""
-    def test_lambda_handler_successful_processing(self, s3_with_docx_file, input_bytes):
-        """Test lambda handler successfully processes DOCX files from S3"""
+    def test_lambda_handler_processes_files_without_version_tag(self, s3_with_docx_file, input_bytes):
+        """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_docx_file
 
         # Create S3 event
@@ -591,28 +573,26 @@ class TestLambdaHandler:
         # Call lambda handler
         lambda_handler(event, {})
 
-        # Verify the processed file was uploaded
-        processed_key = "sample_with_author_processed.docx"
-
-        # Check that processed file exists
+        # Verify the file was processed in place (same object key)
+        # Check that the original file still exists
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         object_keys = [obj['Key'] for obj in response.get('Contents', [])]
-        assert processed_key in object_keys, f"Processed file {processed_key} not found in S3"
+        assert object_key in object_keys, f"Processed file {object_key} not found in S3"
 
         # Get the processed file and verify it's different from original
-        processed_response = s3_client.get_object(Bucket=bucket_name, Key=processed_key)
+        processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         processed_content = processed_response['Body'].read()
-
         assert processed_content != input_bytes, "Processed content should be different from input"
         assert len(processed_content) > 0, "Processed content should not be empty"
 
     def test_lambda_handler_skips_non_docx_files(self, s3_setup):
         """Test lambda handler skips non-DOCX files"""
         s3_client, bucket_name = s3_setup
+        original_content = b"text file content"
 
         # Upload a non-DOCX file
         non_docx_key = "test.txt"
-        s3_client.put_object(Bucket=bucket_name, Key=non_docx_key, Body=b"text file content")
+        s3_client.put_object(Bucket=bucket_name, Key=non_docx_key, Body=original_content)
 
         # Create S3 event for the non-DOCX file
         event = create_s3_event(bucket_name=bucket_name, object_key=non_docx_key)
@@ -620,11 +600,15 @@ class TestLambdaHandler:
         # Call lambda handler
         lambda_handler(event, {})
 
-        # Verify no processed file was created
-        response = s3_client.list_objects_v2(Bucket=bucket_name)
-        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
-        processed_keys = [key for key in object_keys if "_processed" in key]
-        assert len(processed_keys) == 0, "No processed files should be created for non-DOCX files"
+        # Verify the file was not modified (content should remain the same)
+        response = s3_client.get_object(Bucket=bucket_name, Key=non_docx_key)
+        current_content = response['Body'].read()
+        assert current_content == original_content
+
+        # Verify no version tag was added
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=non_docx_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
+        assert 'DOCUMENT_PROCESSOR_VERSION' not in tags
 
     def test_lambda_handler_handles_missing_file(self, s3_setup):
         """Test lambda handler handles missing S3 files gracefully"""
@@ -645,17 +629,25 @@ class TestLambdaHandler:
         """Test lambda handler handles corrupted DOCX files"""
         s3_client, bucket_name, object_key = s3_with_corrupted_file
 
+        # Get original content before processing
+        original_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        original_content = original_response['Body'].read()
+
         # Create S3 event
         event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler - should not raise exception
         lambda_handler(event, {})
 
-        # Verify no processed file was created due to corruption
-        response = s3_client.list_objects_v2(Bucket=bucket_name)
-        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
-        processed_keys = [key for key in object_keys if "_processed" in key]
-        assert len(processed_keys) == 0, "No processed files should be created for corrupted DOCX files"
+        # Verify the file was not modified due to corruption
+        current_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        current_content = current_response['Body'].read()
+        assert current_content == original_content
+
+        # Verify no version tag was added
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
+        assert 'DOCUMENT_PROCESSOR_VERSION' not in tags
 
     def test_lambda_handler_processes_multiple_records(self, s3_setup, input_bytes):
         """Test lambda handler processes multiple S3 records"""
@@ -687,12 +679,25 @@ class TestLambdaHandler:
         # Call lambda handler
         lambda_handler(event, {})
 
-        # Verify both processed files were created
+        # Verify both files were processed in place
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         object_keys = [obj['Key'] for obj in response.get('Contents', [])]
 
-        expected_processed_files = ["file1_processed.docx", "file2_processed.docx"]
-        assert set(expected_processed_files).issubset(set(object_keys)), "Not all processed files found in S3"
+        # Should still have exactly the original files (processed in place)
+        assert set(files).issubset(set(object_keys))
+        assert len(object_keys) == len(files)
+
+        # Verify both files were actually processed (content changed and version tagged)
+        for file_key in files:
+            # Check content was processed
+            processed_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
+            processed_content = processed_response['Body'].read()
+            assert processed_content != input_bytes
+
+            # Check version tag was added
+            tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=file_key)
+            tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
+            assert tags.get('DOCUMENT_PROCESSOR_VERSION') == __version__
 
 
     def test_lambda_handler_empty_records(self, s3_setup):
@@ -708,7 +713,7 @@ class TestLambdaHandler:
         # Verify no files were created
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         contents = response.get('Contents', [])
-        assert len(contents) == 0, "No files should be created when there are no records"
+        assert len(contents) == 0
 
     def test_lambda_handler_no_records_key(self, s3_setup):
         """Test lambda handler handles missing Records key gracefully"""
@@ -723,69 +728,58 @@ class TestLambdaHandler:
         # Verify no files were created
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         contents = response.get('Contents', [])
-        assert len(contents) == 0, "No files should be created when Records key is missing"
-
-    def test_lambda_handler_sets_version_tag(self, s3_with_docx_file):
-        """Test lambda handler sets the document processor version tag on processed files"""
-        from lambda_function import __version__
-
-        s3_client, bucket_name, object_key = s3_with_docx_file
-
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
-
-        # Call lambda handler
-        lambda_handler(event, {})
-
-        # Verify the processed file was uploaded with version tag
-        processed_key = "sample_with_author_processed.docx"
-
-        # Get the object tagging
-        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=processed_key)
-        tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
-
-        # Check that the version tag is set correctly
-        assert 'DOCUMENT_PROCESSOR_VERSION' in tags, "Version tag should be present on processed file"
-        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"Version tag should be {__version__}, but was {tags.get('DOCUMENT_PROCESSOR_VERSION')}"
+        assert len(contents) == 0
 
     def test_lambda_handler_skips_already_processed_files(self, s3_setup, input_bytes):
         """Test lambda handler skips files that have already been processed with the current version"""
-        from lambda_function import __version__
-
         s3_client, bucket_name = s3_setup
         object_key = "already_processed.docx"
 
-        # Upload a DOCX file with the current version tag (simulating already processed file)
+        # First, process the file to get the processed content
+        processed_bytes = strip_docx_author_metadata_from_docx(input_bytes)
+
+        # Upload a DOCX file with processed content and current version tag (simulating already processed file)
         s3_client.put_object(
             Bucket=bucket_name,
             Key=object_key,
-            Body=input_bytes,
+            Body=processed_bytes,
             ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             Tagging=f'DOCUMENT_PROCESSOR_VERSION={__version__}'
         )
 
+        # Get modification time before lambda execution
+        response_before = s3_client.head_object(Bucket=bucket_name, Key=object_key)
+        last_modified_before = response_before['LastModified']
+
         # Create S3 event
         event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
 
-        # Verify no new processed file was created (since it was already processed)
-        response = s3_client.list_objects_v2(Bucket=bucket_name)
-        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
+        # Verify file was not re-processed (content and metadata should be unchanged)
+        response_after = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        current_content = response_after['Body'].read()
+        current_last_modified = response_after['LastModified']
 
-        # Should only have the original file, no processed version
-        assert object_key in object_keys, "Original file should still exist"
-        processed_key = "already_processed_processed.docx"
-        assert processed_key not in object_keys, f"No new processed file should be created, but found {processed_key}"
+        # Content should remain the same (not re-processed)
+        assert current_content == processed_bytes
+
+        # Last modified time should be the same (file was not updated)
+        assert current_last_modified == last_modified_before
+
+        # Version tag should still be present and unchanged
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
+        assert tags.get('DOCUMENT_PROCESSOR_VERSION') == __version__
 
         # Verify we only have 1 file total (the original)
-        assert len(object_keys) == 1, f"Should only have 1 file (the original), but found {len(object_keys)}: {object_keys}"
+        list_response = s3_client.list_objects_v2(Bucket=bucket_name)
+        object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
+        assert len(object_keys) == 1
 
     def test_lambda_handler_processes_files_with_different_version(self, s3_setup, input_bytes):
         """Test lambda handler processes files that have a different version tag"""
-        from lambda_function import __version__
-
         s3_client, bucket_name = s3_setup
         object_key = "old_version.docx"
         old_version = "0.0.9-old"  # Different from current version
@@ -805,48 +799,18 @@ class TestLambdaHandler:
         # Call lambda handler
         lambda_handler(event, {})
 
-        # Verify a new processed file was created (since version was different)
-        response = s3_client.list_objects_v2(Bucket=bucket_name)
-        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
+        # Verify the file was re-processed (content should be different from original)
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        processed_content = response['Body'].read()
+        assert processed_content != input_bytes
 
-        processed_key = "old_version_processed.docx"
-        assert processed_key in object_keys, f"Processed file {processed_key} should be created for different version"
-
-        # Verify the new processed file has the current version tag
-        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=processed_key)
+        # Verify the file has the current version tag
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
         tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
-        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"New processed file should have current version {__version__}"
+        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__
 
-    def test_lambda_handler_processes_files_without_version_tag(self, s3_setup, input_bytes):
-        """Test lambda handler processes files that have no version tag"""
-        from lambda_function import __version__
-
-        s3_client, bucket_name = s3_setup
-        object_key = "no_version_tag.docx"
-
-        # Upload a DOCX file without any version tag (simulating unprocessed file)
-        s3_client.put_object(
-            Bucket=bucket_name,
-            Key=object_key,
-            Body=input_bytes,
-            ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            # No Tagging parameter - file has no tags
-        )
-
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
-
-        # Call lambda handler
-        lambda_handler(event, {})
-
-        # Verify a processed file was created (since there was no version tag)
-        response = s3_client.list_objects_v2(Bucket=bucket_name)
-        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
-
-        processed_key = "no_version_tag_processed.docx"
-        assert processed_key in object_keys, f"Processed file {processed_key} should be created when no version tag exists"
-
-        # Verify the processed file has the current version tag
-        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=processed_key)
-        tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
-        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__, f"Processed file should have current version {__version__}"
+        # Verify we only have 1 file total (the original, processed in place)
+        list_response = s3_client.list_objects_v2(Bucket=bucket_name)
+        object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
+        assert len(object_keys) == 1
+        assert object_key in object_keys

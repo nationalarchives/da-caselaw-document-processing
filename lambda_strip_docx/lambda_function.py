@@ -102,20 +102,16 @@ def lambda_handler(event, context):
                     logger.error(f"File {object_key} is not a valid DOCX (zip) file.")
                     continue
 
-                # Create output key (you can modify this logic as needed)
-                base_name, extension = os.path.splitext(object_key)
-                output_key = f"{base_name}_processed{extension}"
-
                 # Write the processed file back to S3
                 s3.put_object(
                     Bucket=bucket_name,
-                    Key=output_key,
+                    Key=object_key,
                     Body=output_bytes,
                     ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                     Tagging=f'DOCUMENT_PROCESSOR_VERSION={document_processor_version}'
                 )
 
-                logger.info(f"Successfully processed and saved: {output_key}")
+                logger.info(f"Successfully processed and rewrote: {object_key}")
 
             except Exception as e:
                 logger.error(f"Failed to process file {object_key}: {e}", exc_info=True)
