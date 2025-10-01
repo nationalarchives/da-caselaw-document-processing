@@ -1,6 +1,7 @@
 import os
 import pytest
 import boto3
+import logging
 from moto import mock_aws
 from zipfile import ZipFile
 import io
@@ -585,7 +586,7 @@ class TestLambdaHandler:
         assert processed_content != input_bytes, "Processed content should be different from input"
         assert len(processed_content) > 0, "Processed content should not be empty"
 
-    def test_lambda_handler_skips_non_docx_files(self, s3_setup):
+    def test_lambda_handler_skips_non_docx_files(self, s3_setup, caplog):
         """Test lambda handler skips non-DOCX files"""
         s3_client, bucket_name = s3_setup
         original_content = b"text file content"
@@ -598,7 +599,8 @@ class TestLambdaHandler:
         event = create_s3_event(bucket_name=bucket_name, object_key=non_docx_key)
 
         # Call lambda handler
-        lambda_handler(event, {})
+        with caplog.at_level(logging.INFO):
+            lambda_handler(event, {})
 
         # Verify the file was not modified (content should remain the same)
         response = s3_client.get_object(Bucket=bucket_name, Key=non_docx_key)
@@ -609,6 +611,10 @@ class TestLambdaHandler:
         tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=non_docx_key)
         tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
         assert 'DOCUMENT_PROCESSOR_VERSION' not in tags
+
+        # Verify expected log messages
+        assert "Processing file: test.txt from bucket: test-bucket" in caplog.text
+        assert "Skipping non-DOCX file: test.txt" in caplog.text
 
     def test_lambda_handler_handles_missing_file(self, s3_setup):
         """Test lambda handler handles missing S3 files gracefully"""
@@ -625,7 +631,7 @@ class TestLambdaHandler:
         contents = response.get('Contents', [])
         assert len(contents) == 0, "No files should be created when source file is missing"
 
-    def test_lambda_handler_handles_corrupted_docx_files(self, s3_with_corrupted_file):
+    def test_lambda_handler_handles_corrupted_docx_files(self, s3_with_corrupted_file, caplog):
         """Test lambda handler handles corrupted DOCX files"""
         s3_client, bucket_name, object_key = s3_with_corrupted_file
 
@@ -637,7 +643,8 @@ class TestLambdaHandler:
         event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler - should not raise exception
-        lambda_handler(event, {})
+        with caplog.at_level(logging.INFO):
+            lambda_handler(event, {})
 
         # Verify the file was not modified due to corruption
         current_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
@@ -648,6 +655,10 @@ class TestLambdaHandler:
         tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
         tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
         assert 'DOCUMENT_PROCESSOR_VERSION' not in tags
+
+        # Verify expected log messages
+        assert "Processing file: corrupted.docx from bucket: test-bucket" in caplog.text
+        assert "File corrupted.docx is not a valid DOCX (zip) file." in caplog.text
 
     def test_lambda_handler_processes_multiple_records(self, s3_setup, input_bytes):
         """Test lambda handler processes multiple S3 records"""
