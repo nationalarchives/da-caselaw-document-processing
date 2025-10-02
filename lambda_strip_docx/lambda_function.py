@@ -87,9 +87,20 @@ def lambda_handler(event, context):
                 # Check if the file has already been processed
                 tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
                 tags = {tag['Key']: tag['Value'] for tag in tags_response.get('TagSet', [])}
-                if 'DOCUMENT_PROCESSOR_VERSION' in tags and tags['DOCUMENT_PROCESSOR_VERSION'] == document_processor_version:
-                    logger.info(f"File {object_key} has already been processed. Skipping.")
-                    continue
+
+                if 'DOCUMENT_PROCESSOR_VERSION' in tags:
+                    existing_version = tags['DOCUMENT_PROCESSOR_VERSION']
+                    try:
+                        current_major_version = document_processor_version.split('.')[0]
+                        existing_major_version = existing_version.split('.')[0]
+
+                        if current_major_version == existing_major_version:
+                            logger.info(f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.")
+                            continue
+                    except (IndexError, AttributeError):
+                        # If version parsing fails, proceed with processing to be safe
+                        logger.warning(f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.")
+                        pass
 
                 # Read the file from S3
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)

@@ -790,19 +790,21 @@ class TestLambdaHandler:
         object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
         assert len(object_keys) == 1
 
-    def test_lambda_handler_processes_files_with_different_version(self, s3_setup, input_bytes):
-        """Test lambda handler processes files that have a different version tag"""
+    def test_lambda_handler_processes_files_with_different_major_version(self, s3_setup, input_bytes):
+        """Test lambda handler processes files that have a different major version tag"""
         s3_client, bucket_name = s3_setup
-        object_key = "old_version.docx"
-        old_version = "0.0.9-old"  # Different from current version
+        object_key = "old_major_version.docx"
 
-        # Upload a DOCX file with an old version tag (simulating file processed with older version)
+        current_major = __version__.split('.')[0]
+        version = f"1{current_major[1:]}.0.0"
+
+        # Upload a DOCX file with a different major version tag
         s3_client.put_object(
             Bucket=bucket_name,
             Key=object_key,
             Body=input_bytes,
             ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            Tagging=f'DOCUMENT_PROCESSOR_VERSION={old_version}'
+            Tagging=f'DOCUMENT_PROCESSOR_VERSION={version}'
         )
 
         # Create S3 event
@@ -826,6 +828,91 @@ class TestLambdaHandler:
         object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
         assert len(object_keys) == 1
         assert object_key in object_keys
+
+    def test_lambda_handler_skips_files_with_same_major_version(self, s3_setup, input_bytes, caplog):
+        """Test lambda handler skips files that have the same major version but different minor/patch version"""
+        s3_client, bucket_name = s3_setup
+        object_key = "same_major_version.docx"
+
+        # Create a version with same major version but different minor/patch
+        current_major = __version__.split('.')[0]
+        version = f"{current_major}.2.5"
+
+        # First, process the file to get the processed content
+        processed_bytes = strip_docx_author_metadata_from_docx(input_bytes)
+
+        # Upload a DOCX file with same major version but different minor/patch
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=processed_bytes,
+            ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            Tagging=f'DOCUMENT_PROCESSOR_VERSION={version}'
+        )
+
+        # Get modification time before lambda execution
+        response_before = s3_client.head_object(Bucket=bucket_name, Key=object_key)
+        last_modified_before = response_before['LastModified']
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        with caplog.at_level(logging.INFO):
+            lambda_handler(event, {})
+
+        # Verify file was not re-processed (content and metadata should be unchanged)
+        response_after = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        current_content = response_after['Body'].read()
+        current_last_modified = response_after['LastModified']
+
+        # Content should remain the same (not re-processed)
+        assert current_content == processed_bytes
+
+        # Last modified time should be the same (file was not updated)
+        assert current_last_modified == last_modified_before
+
+        # Version tag should still be the old one (unchanged)
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response.get('TagSet', [])}
+        assert tags.get('DOCUMENT_PROCESSOR_VERSION') == version
+
+        # Verify the log message indicates skipping due to compatible version
+        assert f"has already been processed with compatible version {version}" in caplog.text
+        assert f"current: {__version__}" in caplog.text
+
+    def test_lambda_handler_handles_malformed_version_tags(self, s3_setup, input_bytes):
+        """Test lambda handler handles malformed version tags gracefully"""
+        s3_client, bucket_name = s3_setup
+        object_key = "malformed_version.docx"
+
+        # Use a malformed version that can't be parsed normally
+        malformed_version = "invalid-version-format"
+
+        # Upload a DOCX file with a malformed version tag
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=input_bytes,
+            ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            Tagging=f'DOCUMENT_PROCESSOR_VERSION={malformed_version}'
+        )
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler - should not crash
+        lambda_handler(event, {})
+
+        # Verify the file was processed (since version comparison should fail gracefully and default to processing)
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        processed_content = response['Body'].read()
+        assert processed_content != input_bytes
+
+        # Verify the file has the current version tag
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
+        tags = {tag['Key']: tag['Value'] for tag in tag_response['TagSet']}
+        assert tags['DOCUMENT_PROCESSOR_VERSION'] == __version__
 
     def test_version_number_is_uri_safe(self):
         """AWS expects the tag to be URI encoded; ensure that it is URI-safe for our convenience.
