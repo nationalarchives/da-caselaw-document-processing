@@ -6,6 +6,8 @@ import lxml.etree
 import boto3
 from urllib.parse import unquote_plus
 
+__version__="0.1.0-dev"
+
 REDACTION_STRING = ""
 NAMESPACES = {
     "cp": "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
@@ -62,6 +64,8 @@ def lambda_handler(event, context):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
+    # Get the document processor version
+    document_processor_version = __version__
     try:
         # Initialize S3 client
         s3 = boto3.client('s3')
@@ -80,6 +84,24 @@ def lambda_handler(event, context):
                     logger.warning(f"Skipping non-DOCX file: {object_key}")
                     continue
 
+                # Check if the file has already been processed
+                tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
+                tags = {tag['Key']: tag['Value'] for tag in tags_response.get('TagSet', [])}
+
+                if 'DOCUMENT_PROCESSOR_VERSION' in tags:
+                    existing_version = tags['DOCUMENT_PROCESSOR_VERSION']
+                    try:
+                        current_major_version = document_processor_version.split('.')[0]
+                        existing_major_version = existing_version.split('.')[0]
+
+                        if current_major_version == existing_major_version:
+                            logger.info(f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.")
+                            continue
+                    except (IndexError, AttributeError):
+                        # If version parsing fails, proceed with processing to be safe
+                        logger.warning(f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.")
+                        pass
+
                 # Read the file from S3
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)
                 file_content = response['Body'].read()
@@ -91,19 +113,16 @@ def lambda_handler(event, context):
                     logger.error(f"File {object_key} is not a valid DOCX (zip) file.")
                     continue
 
-                # Create output key (you can modify this logic as needed)
-                base_name, extension = os.path.splitext(object_key)
-                output_key = f"{base_name}_processed{extension}"
-
                 # Write the processed file back to S3
                 s3.put_object(
                     Bucket=bucket_name,
-                    Key=output_key,
+                    Key=object_key,
                     Body=output_bytes,
-                    ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Tagging=f'DOCUMENT_PROCESSOR_VERSION={document_processor_version}'
                 )
 
-                logger.info(f"Successfully processed and saved: {output_key}")
+                logger.info(f"Successfully processed and rewrote: {object_key}")
 
             except Exception as e:
                 logger.error(f"Failed to process file {object_key}: {e}", exc_info=True)
