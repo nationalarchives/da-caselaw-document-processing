@@ -1,4 +1,5 @@
 import os
+import urllib
 import pytest
 import boto3
 import logging
@@ -825,3 +826,8 @@ class TestLambdaHandler:
         object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
         assert len(object_keys) == 1
         assert object_key in object_keys
+
+    def test_version_number_is_uri_safe(self):
+        """AWS expects the tag to be URI encoded; ensure that it is URI-safe for our convenience.
+        https://boto3.amazonaws.com/v1/documentation/api/1.28.3/reference/services/s3/client/put_object.html"""
+        assert __version__ == urllib.parse.quote_plus(__version__)
