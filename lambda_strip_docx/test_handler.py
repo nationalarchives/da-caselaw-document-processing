@@ -7,6 +7,7 @@ from zipfile import ZipFile
 import io
 import re
 from lambda_function import strip_docx_author_metadata_from_docx, lambda_handler, __version__
+import urllib.parse
 
 def load_docx_bytes(filename):
     with open(filename, "rb") as f:
@@ -825,3 +826,8 @@ class TestLambdaHandler:
         object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
         assert len(object_keys) == 1
         assert object_key in object_keys
+
+    def test_version_number_is_uri_safe(self):
+        """AWS expects the tag to be URI encoded; ensure that it is URI-safe for our convienience.
+        https://boto3.amazonaws.com/v1/documentation/api/1.28.3/reference/services/s3/client/put_object.html"""
+        assert __version__ == urllib.parse.quote_plus(__version__)
