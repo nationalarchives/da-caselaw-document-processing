@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.13@sha256:de368792d89827e950d750704b6b5c4505d5462b033881d2916997781c9b241d
+FROM public.ecr.aws/lambda/python:3.13@sha256:a0ca8c190db48ddbb341ce893f4a4ecf04b1adf9b696e0b26066c29211e4cdff
 
 # Install dependencies
 COPY requirements.txt ./
