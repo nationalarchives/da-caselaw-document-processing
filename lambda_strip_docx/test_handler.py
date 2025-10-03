@@ -92,7 +92,7 @@ class TestLambdaHandler:
 
         # Verify expected log messages
         assert "Processing file: test.txt from bucket: test-bucket" in caplog.text
-        assert "Skipping non-DOCX file: test.txt" in caplog.text
+        assert "Skipping unrecognised file: test.txt b'text '" in caplog.text
 
     def test_lambda_handler_handles_missing_file(self, s3_setup):
         """Test lambda handler handles missing S3 files gracefully"""
