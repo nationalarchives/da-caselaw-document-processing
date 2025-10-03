@@ -108,7 +108,7 @@ curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations
 Install and run pre-commit hooks to ensure code quality:
 
 ```sh
-pip install pre-commit detect-secrets
+pip install pre-commit
 pre-commit install
 pre-commit run --all-files
 ```
