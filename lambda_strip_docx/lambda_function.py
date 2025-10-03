@@ -47,8 +47,10 @@ def lambda_handler(event, context):
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)
                 file_content = response['Body'].read()
 
-                extension = object_key.split(".")[-1]
+                extension = object_key.split(".")[-1].lower()
                 # TODO: work out what sort of file it is from magic numbers
+                # extensions are less reliable
+
                 file_type = extension
                 if file_type == "docx":
                     output_bytes = clean_docx.clean(file_content)
@@ -57,8 +59,8 @@ def lambda_handler(event, context):
                     output_bytes = clean_pdf.clean(file_content)
                     content_type= "application/pdf"
                 else:
-                    # TODO -- make generic and fix tests
-                    assert "Skipping non-DOCX file: test.txt" in caplog.text
+                    logger.warning(f"Skipping unrecognised file: {object_key} {file_content[:5]!r}")
+                    continue
 
 
 
