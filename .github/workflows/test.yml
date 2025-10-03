@@ -22,13 +22,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install production dependencies
+      - name: Install non-dockerised exiftool and qpdf
+        run: sudo apt-get install -y exiftool qpdf
+
+      - name: Install python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r lambda_strip_docx/requirements.txt
-
-      - name: Install development dependencies
-        run: |
           pip install -r lambda_strip_docx/requirements-dev.txt
 
       - name: Run tests
