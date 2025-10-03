@@ -1,10 +1,12 @@
 import clean_pdf
 
+
 def pad_name(name):
     split_name_ints = list(name)
     split_name_chars = [chr(x) for x in split_name_ints]
     unicode_name = "\x00" + "\x00".join(split_name_chars)
-    return unicode_name.encode('utf-8')
+    return unicode_name.encode("utf-8")
+
 
 def check_sample_pdf_metadata_is_stripped(pdf_bytes):
     names = [b"Alice Johnson", b"Bob Smith", b"Carol Davis"]
@@ -12,13 +14,14 @@ def check_sample_pdf_metadata_is_stripped(pdf_bytes):
     for padded_name in padded_names:
         assert padded_name not in pdf_bytes
 
+
 def test_cleaning():
     check_sample_pdf_metadata_is_stripped(b"")
 
 
 def test_cleaning_pdf_works_at_all(input_pdf):
     # alice in hex-encoded UTF-16, as it appears in qdf format
-    alice= b"0041006c006900630065"
+    alice = b"0041006c006900630065"
 
     # input pdf must be modified with `qpdf --qdf` so we can see all the data neatly
     assert b"%QDF-1.0" in input_pdf

@@ -1,4 +1,3 @@
-import os
 import logging
 import io
 from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED
@@ -15,13 +14,16 @@ NAMESPACES = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
 }
 
+
 def _strip_forbidden_attributes(root: lxml.etree._Element) -> None:
     """Remove forbidden attributes from XML elements."""
     forbidden_attributes = ["w15:author", "w15:userId", "w:author", "w:initials"]
     for attribute in forbidden_attributes:
         attribute_namespace, _, attribute_name = attribute.partition(":")
         for node in root.xpath(f"//*[@{attribute}]", namespaces=NAMESPACES):
-            node.attrib[f"{{{NAMESPACES[attribute_namespace]}}}{attribute_name}"] = REDACTION_STRING
+            node.attrib[f"{{{NAMESPACES[attribute_namespace]}}}{attribute_name}"] = (
+                REDACTION_STRING
+            )
 
 
 def _strip_forbidden_tags(root: lxml.etree._Element) -> None:
@@ -50,7 +52,12 @@ def strip_docx_author_metadata_from_docx(input_docx: bytes) -> bytes:
     input_buffer = io.BytesIO(input_docx)
     output_buffer = io.BytesIO()
 
-    with ZipFile(input_buffer, "r") as archive_input, ZipFile(output_buffer, "w", compression=ZIP_DEFLATED, compresslevel=6) as archive_output:
+    with (
+        ZipFile(input_buffer, "r") as archive_input,
+        ZipFile(
+            output_buffer, "w", compression=ZIP_DEFLATED, compresslevel=6
+        ) as archive_output,
+    ):
         for archive_filename in archive_input.namelist():
             with archive_input.open(archive_filename, "r") as f:
                 xml_content = f.read()
@@ -59,10 +66,11 @@ def strip_docx_author_metadata_from_docx(input_docx: bytes) -> bytes:
 
     return output_buffer.getvalue()
 
+
 def clean(file_content):
     try:
         return strip_docx_author_metadata_from_docx(file_content)
     except BadZipFile:
-        logger.error(f"File is not a valid DOCX (zip) file.")
+        logger.error("File is not a valid DOCX (zip) file.")
         raise
     # TODO: handle exceptions, esp BadZipFile

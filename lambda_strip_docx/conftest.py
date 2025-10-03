@@ -1,34 +1,36 @@
 import os
-import urllib
 import pytest
 import boto3
-import logging
 from moto import mock_aws
-from zipfile import ZipFile
-import io
-import re
-from clean_docx import strip_docx_author_metadata_from_docx
-from lambda_function import lambda_handler, __version__
+
 
 def load_bytes(filename):
     with open(filename, "rb") as f:
         return f.read()
 
+
 # Fixtures
 @pytest.fixture
 def sample_docx_path():
     """Path to the sample DOCX file with author metadata"""
-    return os.path.join(os.path.dirname(__file__), "test_files", "sample_with_author.docx")
+    return os.path.join(
+        os.path.dirname(__file__), "test_files", "sample_with_author.docx"
+    )
+
 
 @pytest.fixture
 def sample_pdf_path():
     """Path to the sample DOCX file with author metadata"""
-    return os.path.join(os.path.dirname(__file__), "test_files", "sample_pdf_with_author.pdf")
+    return os.path.join(
+        os.path.dirname(__file__), "test_files", "sample_pdf_with_author.pdf"
+    )
+
 
 @pytest.fixture
 def input_docx(sample_docx_path):
     """Load sample DOCX file as bytes"""
     return load_bytes(sample_docx_path)
+
 
 @pytest.fixture
 def input_pdf(sample_pdf_path):
@@ -41,14 +43,16 @@ def s3_bucket_name():
     """S3 bucket name for testing"""
     return "test-bucket"
 
+
 @pytest.fixture
 def s3_setup(s3_bucket_name):
     """Setup mocked S3 environment with bucket"""
     with mock_aws():
         # Create S3 client and bucket
-        s3_client = boto3.client('s3', region_name='us-east-1')
+        s3_client = boto3.client("s3", region_name="us-east-1")
         s3_client.create_bucket(Bucket=s3_bucket_name)
         yield s3_client, s3_bucket_name
+
 
 @pytest.fixture
 def s3_with_docx_file(s3_setup, input_docx):
@@ -61,10 +65,11 @@ def s3_with_docx_file(s3_setup, input_docx):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_docx,
-        ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
 
     return s3_client, bucket_name, object_key
+
 
 @pytest.fixture
 def s3_with_pdf_file(s3_setup, input_pdf):
@@ -77,12 +82,10 @@ def s3_with_pdf_file(s3_setup, input_pdf):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_pdf,
-        ContentType='application/pdf'
+        ContentType="application/pdf",
     )
 
     return s3_client, bucket_name, object_key
-
-
 
 
 @pytest.fixture
@@ -96,7 +99,7 @@ def s3_with_corrupted_file(s3_setup):
         Bucket=bucket_name,
         Key=object_key,
         Body=b"corrupted docx content",
-        ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
 
     return s3_client, bucket_name, object_key
