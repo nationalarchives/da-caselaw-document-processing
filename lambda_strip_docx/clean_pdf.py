@@ -13,7 +13,15 @@ def clean_pdf(pdf_filename: str, verify_removal: bool = True, compressed=True) -
     # both write back to pdf_filename
     subprocess.run(["exiftool", "-all:all=", pdf_filename], timeout=10, check=True)
     subprocess.run(
-        ["qpdf", "--linearize", "--flatten-annotations=all", "--replace-input", pdf_filename], timeout=10, check=True
+        [
+            "qpdf",
+            "--linearize",
+            "--flatten-annotations=all",
+            "--replace-input",
+            pdf_filename,
+        ],
+        timeout=10,
+        check=True,
     )
 
     if verify_removal:
@@ -29,7 +37,17 @@ def clean_pdf(pdf_filename: str, verify_removal: bool = True, compressed=True) -
 
     # uncompress the PDF if required for checking purposes
     if not compressed:
-        subprocess.run(["qpdf", "--qdf", "--object-streams=disable", "--replace-input", pdf_filename], timeout=10, check=True)
+        subprocess.run(
+            [
+                "qpdf",
+                "--qdf",
+                "--object-streams=disable",
+                "--replace-input",
+                pdf_filename,
+            ],
+            timeout=10,
+            check=True,
+        )
 
 
 def clean(file_content, compressed=True):

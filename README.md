@@ -128,15 +128,9 @@ pre-commit run --all-files
 - Follow repo and code style guidelines.
 - Document any new environment variables or requirements in the README.
 
----
-
----
-
 # Pre-commit and Repo Standards
 
 This repository uses [pre-commit](https://pre-commit.com/) and [detect-secrets](https://github.com/Yelp/detect-secrets) to enforce code quality and prevent secrets leakage. See [The Engineering Handbook](https://national-archives.atlassian.net/wiki/spaces/DAAE/pages/47775767/Engineering+Handbook) for more details.
-
----
 
 ## Coming Soon
 
