@@ -7,7 +7,8 @@ from moto import mock_aws
 from zipfile import ZipFile
 import io
 import re
-from lambda_function import strip_docx_author_metadata_from_docx, lambda_handler, __version__
+from clean_docx import strip_docx_author_metadata_from_docx
+from lambda_function import lambda_handler, __version__
 
 def load_docx_bytes(filename):
     with open(filename, "rb") as f:
@@ -659,7 +660,7 @@ class TestLambdaHandler:
 
         # Verify expected log messages
         assert "Processing file: corrupted.docx from bucket: test-bucket" in caplog.text
-        assert "File corrupted.docx is not a valid DOCX (zip) file." in caplog.text
+        assert "File is not a valid DOCX (zip) file." in caplog.text
 
     def test_lambda_handler_processes_multiple_records(self, s3_setup, input_bytes):
         """Test lambda handler processes multiple S3 records"""
