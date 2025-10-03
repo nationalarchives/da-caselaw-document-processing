@@ -1,14 +1,9 @@
-import os
-import urllib
 import pytest
-import boto3
-import logging
-from moto import mock_aws
 from zipfile import ZipFile
 import io
 import re
 from clean_docx import strip_docx_author_metadata_from_docx
-from lambda_function import lambda_handler, __version__
+from lambda_function import __version__
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
     """Create a mock S3 event structure"""
