@@ -60,7 +60,7 @@ source .venv/bin/activate
 Install the required dependencies for the DOCX Lambda:
 
 ```sh
-pip install -r lambda_strip_docx/requirements.txt
+pip install -r lambda_strip_docx/requirements-dev.txt
 ```
 
 #### 3. Run Unit Tests
@@ -104,8 +104,6 @@ curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations
 `test-event.json` should be a valid Lambda event payload for your handler (see AWS docs for examples).
 
 #### 5. Linting and Pre-commit
-
-#### 4. Linting and Pre-commit
 
 Install and run pre-commit hooks to ensure code quality:
 
