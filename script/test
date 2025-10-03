@@ -1,2 +1,2 @@
 cd lambda_strip_docx
-pytest
+pytest $*
