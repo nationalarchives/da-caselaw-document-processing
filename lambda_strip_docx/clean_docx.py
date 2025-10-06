@@ -65,4 +65,3 @@ def clean(file_content):
     except BadZipFile:
         logger.error(f"File is not a valid DOCX (zip) file.")
         raise
-    # TODO: handle exceptions, esp BadZipFile
