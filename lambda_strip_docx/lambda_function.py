@@ -25,11 +25,6 @@ def lambda_handler(event, context):
 
                 logger.info(f"Processing file: {object_key} from bucket: {bucket_name}")
 
-                # Check if it's a DOCX file
-                if not object_key.lower().endswith('.docx'):
-                    logger.warning(f"Skipping non-DOCX file: {object_key}")
-                    continue
-
                 # Check if the file has already been processed
                 tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
                 tags = {tag['Key']: tag['Value'] for tag in tags_response.get('TagSet', [])}
@@ -52,14 +47,19 @@ def lambda_handler(event, context):
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)
                 file_content = response['Body'].read()
 
+                extension = object_key.split(".")[-1]
                 # TODO: work out what sort of file it is from magic numbers
-                file_type = "docx"
+                file_type = extension
                 if file_type == "docx":
                     output_bytes = clean_docx.clean(file_content)
                     content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 elif file_type == "pdf":
                     output_bytes = clean_pdf.clean(file_content)
                     content_type= "application/pdf"
+                else:
+                    # TODO -- make generic and fix tests
+                    assert "Skipping non-DOCX file: test.txt" in caplog.text
+
 
 
                 # Write the processed file back to S3
