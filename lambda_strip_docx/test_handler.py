@@ -30,7 +30,7 @@ def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
 
 class TestLambdaHandler:
     """Tests for the lambda_handler function"""
-    def test_lambda_handler_processes_files_without_version_tag(self, s3_with_docx_file, input_bytes):
+    def test_lambda_handler_processes_docx_files_without_version_tag(self, s3_with_docx_file, input_docx):
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_docx_file
 
@@ -40,17 +40,29 @@ class TestLambdaHandler:
         # Call lambda handler
         lambda_handler(event, {})
 
-        # Verify the file was processed in place (same object key)
-        # Check that the original file still exists
-        response = s3_client.list_objects_v2(Bucket=bucket_name)
-        object_keys = [obj['Key'] for obj in response.get('Contents', [])]
-        assert object_key in object_keys, f"Processed file {object_key} not found in S3"
+        # Get the processed file and verify it's different from original
+        processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        processed_content = processed_response['Body'].read()
+        assert processed_content != input_docx
+        assert len(processed_content) > 0
+
+    def test_lambda_handler_processes_pdf_files_without_version_tag(self, s3_with_pdf_file, input_pdf):
+        """Test lambda handler processes files without a version tag"""
+        s3_client, bucket_name, object_key = s3_with_pdf_file
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
 
         # Get the processed file and verify it's different from original
         processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         processed_content = processed_response['Body'].read()
-        assert processed_content != input_bytes, "Processed content should be different from input"
-        assert len(processed_content) > 0, "Processed content should not be empty"
+        assert processed_content != input_pdf
+        assert len(processed_content) > 0
+
+
 
     def test_lambda_handler_skips_non_docx_files(self, s3_setup, caplog):
         """Test lambda handler skips non-DOCX files"""
@@ -126,7 +138,7 @@ class TestLambdaHandler:
         assert "Processing file: corrupted.docx from bucket: test-bucket" in caplog.text
         assert "File is not a valid DOCX (zip) file." in caplog.text
 
-    def test_lambda_handler_processes_multiple_records(self, s3_setup, input_bytes):
+    def test_lambda_handler_processes_multiple_records(self, s3_setup, input_docx):
         """Test lambda handler processes multiple S3 records"""
         s3_client, bucket_name = s3_setup
 
@@ -136,7 +148,7 @@ class TestLambdaHandler:
             s3_client.put_object(
                 Bucket=bucket_name,
                 Key=file_key,
-                Body=input_bytes,
+                Body=input_docx,
                 ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
 
@@ -169,7 +181,7 @@ class TestLambdaHandler:
             # Check content was processed
             processed_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
             processed_content = processed_response['Body'].read()
-            assert processed_content != input_bytes
+            assert processed_content != input_docx
 
             # Check version tag was added
             tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=file_key)
@@ -207,13 +219,13 @@ class TestLambdaHandler:
         contents = response.get('Contents', [])
         assert len(contents) == 0
 
-    def test_lambda_handler_skips_already_processed_files(self, s3_setup, input_bytes):
+    def test_lambda_handler_skips_already_processed_files(self, s3_setup, input_docx):
         """Test lambda handler skips files that have already been processed with the current version"""
         s3_client, bucket_name = s3_setup
         object_key = "already_processed.docx"
 
         # First, process the file to get the processed content
-        processed_bytes = strip_docx_author_metadata_from_docx(input_bytes)
+        processed_bytes = strip_docx_author_metadata_from_docx(input_docx)
 
         # Upload a DOCX file with processed content and current version tag (simulating already processed file)
         s3_client.put_object(
@@ -255,7 +267,7 @@ class TestLambdaHandler:
         object_keys = [obj['Key'] for obj in list_response.get('Contents', [])]
         assert len(object_keys) == 1
 
-    def test_lambda_handler_processes_files_with_different_major_version(self, s3_setup, input_bytes):
+    def test_lambda_handler_processes_files_with_different_major_version(self, s3_setup, input_docx):
         """Test lambda handler processes files that have a different major version tag"""
         s3_client, bucket_name = s3_setup
         object_key = "old_major_version.docx"
@@ -267,7 +279,7 @@ class TestLambdaHandler:
         s3_client.put_object(
             Bucket=bucket_name,
             Key=object_key,
-            Body=input_bytes,
+            Body=input_docx,
             ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             Tagging=f'DOCUMENT_PROCESSOR_VERSION={version}'
         )
@@ -281,7 +293,7 @@ class TestLambdaHandler:
         # Verify the file was re-processed (content should be different from original)
         response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         processed_content = response['Body'].read()
-        assert processed_content != input_bytes
+        assert processed_content != input_docx
 
         # Verify the file has the current version tag
         tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
@@ -294,7 +306,7 @@ class TestLambdaHandler:
         assert len(object_keys) == 1
         assert object_key in object_keys
 
-    def test_lambda_handler_skips_files_with_same_major_version(self, s3_setup, input_bytes, caplog):
+    def test_lambda_handler_skips_files_with_same_major_version(self, s3_setup, input_docx, caplog):
         """Test lambda handler skips files that have the same major version but different minor/patch version"""
         s3_client, bucket_name = s3_setup
         object_key = "same_major_version.docx"
@@ -304,7 +316,7 @@ class TestLambdaHandler:
         version = f"{current_major}.2.5"
 
         # First, process the file to get the processed content
-        processed_bytes = strip_docx_author_metadata_from_docx(input_bytes)
+        processed_bytes = strip_docx_author_metadata_from_docx(input_docx)
 
         # Upload a DOCX file with same major version but different minor/patch
         s3_client.put_object(
@@ -346,7 +358,7 @@ class TestLambdaHandler:
         assert f"has already been processed with compatible version {version}" in caplog.text
         assert f"current: {__version__}" in caplog.text
 
-    def test_lambda_handler_handles_malformed_version_tags(self, s3_setup, input_bytes):
+    def test_lambda_handler_handles_malformed_version_tags(self, s3_setup, input_docx):
         """Test lambda handler handles malformed version tags gracefully"""
         s3_client, bucket_name = s3_setup
         object_key = "malformed_version.docx"
@@ -358,7 +370,7 @@ class TestLambdaHandler:
         s3_client.put_object(
             Bucket=bucket_name,
             Key=object_key,
-            Body=input_bytes,
+            Body=input_docx,
             ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             Tagging=f'DOCUMENT_PROCESSOR_VERSION={malformed_version}'
         )
@@ -372,7 +384,7 @@ class TestLambdaHandler:
         # Verify the file was processed (since version comparison should fail gracefully and default to processing)
         response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         processed_content = response['Body'].read()
-        assert processed_content != input_bytes
+        assert processed_content != input_docx
 
         # Verify the file has the current version tag
         tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
