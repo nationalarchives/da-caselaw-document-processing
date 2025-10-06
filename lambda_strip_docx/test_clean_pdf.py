@@ -1,6 +1,6 @@
 import clean_pdf
 
-def test_cleaning_pdf_works_at_all(input_pdf):
+def test_clean_pdf_works(input_pdf):
     # alice in hex-encoded UTF-16, as it appears in qdf format
     alice= b"0041006c006900630065"
 
