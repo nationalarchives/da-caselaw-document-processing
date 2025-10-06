@@ -22,8 +22,13 @@ def sample_docx_path():
 
 @pytest.fixture
 def sample_pdf_path():
-    """Path to the sample DOCX file with author metadata"""
+    """Path to the sample PDF file with author metadata"""
     return os.path.join(os.path.dirname(__file__), "test_files", "sample_pdf_with_author.pdf")
+
+@pytest.fixture
+def sample_qdf_path():
+    """Path to the sample QDF file with author metadata"""
+    return os.path.join(os.path.dirname(__file__), "test_files", "sample_pdf_with_author_qdf.pdf")
 
 @pytest.fixture
 def input_docx(sample_docx_path):
@@ -32,9 +37,13 @@ def input_docx(sample_docx_path):
 
 @pytest.fixture
 def input_pdf(sample_pdf_path):
-    """Load sample DOCX file as bytes"""
+    """Load sample PDF file as bytes"""
     return load_bytes(sample_pdf_path)
 
+@pytest.fixture
+def input_qdf(sample_qdf_path):
+    """Load sample QDF file as bytes"""
+    return load_bytes(sample_qdf_path)
 
 @pytest.fixture
 def s3_bucket_name():
