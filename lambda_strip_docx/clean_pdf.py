@@ -36,4 +36,3 @@ def clean(file_content):
         with open(tempfile.name, "rb") as f:
             output_bytes = f.read()
         return output_bytes
-    # return bytesio of temp file
