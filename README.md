@@ -60,7 +60,7 @@ source .venv/bin/activate
 Install the required dependencies for the DOCX Lambda:
 
 ```sh
-pip install -r lambda_strip_docx/requirements.txt
+pip install -r lambda_strip_docx/requirements-dev.txt
 ```
 
 #### 3. Run Unit Tests
@@ -105,12 +105,10 @@ curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations
 
 #### 5. Linting and Pre-commit
 
-#### 4. Linting and Pre-commit
-
 Install and run pre-commit hooks to ensure code quality:
 
 ```sh
-pip install pre-commit detect-secrets
+pip install pre-commit
 pre-commit install
 pre-commit run --all-files
 ```
@@ -130,15 +128,9 @@ pre-commit run --all-files
 - Follow repo and code style guidelines.
 - Document any new environment variables or requirements in the README.
 
----
-
----
-
 # Pre-commit and Repo Standards
 
 This repository uses [pre-commit](https://pre-commit.com/) and [detect-secrets](https://github.com/Yelp/detect-secrets) to enforce code quality and prevent secrets leakage. See [The Engineering Handbook](https://national-archives.atlassian.net/wiki/spaces/DAAE/pages/47775767/Engineering+Handbook) for more details.
-
----
 
 ## Coming Soon
 
