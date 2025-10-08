@@ -1,6 +1,7 @@
 import subprocess
 from subprocess import STDOUT, PIPE
 from tempfile import NamedTemporaryFile
+from utils import file_wrapper
 
 def _qdf(filename: str) -> None:
     """Convert a PDF file into QDF format (which is still a valid PDF) since QDF files are
@@ -39,21 +40,6 @@ def _clean_pdf(filename: str) -> None:
 
     _remove_annotations(filename)
     _remove_properties(filename)
-
-def file_wrapper(file_content, fn) -> bytes:
-    """Since the PDF utilities require filenames and not bytestrings, write the bytestring to a file,
-       and call a partial function which expects a filename. Return the return value of the function,
-       or the output bytes if the function returns nothing"""
-
-    with NamedTemporaryFile(suffix="_temp.pdf") as tempfile:
-        tempfile.file.write(file_content)
-        tempfile.file.close()
-        retval = fn(filename=tempfile.name)
-        if retval is not None:
-            return retval
-        with open(tempfile.name, "rb") as f:
-            output_bytes = f.read()
-        return output_bytes
 
 # The following functions take `bytes` and return bytes from either the file or the log
 # using the functions above
