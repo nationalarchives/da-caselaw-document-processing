@@ -1,6 +1,5 @@
 import subprocess
 from subprocess import STDOUT, PIPE
-from tempfile import NamedTemporaryFile
 from utils import file_wrapper
 
 def _qdf(filename: str) -> None:
@@ -9,7 +8,7 @@ def _qdf(filename: str) -> None:
     subprocess.run(["qpdf", "--qdf", "--object-streams=disable", "--replace-input", filename], timeout=10, check=True)
 
 def _remove_annotations(filename: str) -> None:
-    subprocess.run(["pdfcpu", "annot", "remove", filename], timeout=10, check=True)
+    output = subprocess.run(["pdfcpu", "annot", "remove", filename], timeout=10, stdout=PIPE, stderr=STDOUT)
 
 def _remove_properties(filename: str) -> None:
     # Removing all the properties [nothing specified] does not appear to remove the predefined ones, like Author.
