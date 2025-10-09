@@ -1,8 +1,11 @@
 import clean_pdf
+from render import hash_image, ppm_list
 
 def test_clean_pdf_works(input_pdf):
     # alice in hex-encoded UTF-16, as it may appear in qdf format
     alice= b"0041006c006900630065"
+    input_hash = hash_image(input_pdf)
+    input_images = ppm_list(input_pdf)
 
     # the input PDF contains Author data (via QPDF)
     input_qdf = clean_pdf.qdf(input_pdf)
@@ -29,3 +32,8 @@ def test_clean_pdf_works(input_pdf):
     assert b"Subject: \n" in pdf_info
     assert b"PDF Producer: pdfcpu" in pdf_info
     assert b"Title: \n" in pdf_info
+
+    output_images=ppm_list(output_pdf)
+
+    breakpoint()
+    assert input_images == output_images

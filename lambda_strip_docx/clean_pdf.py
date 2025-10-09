@@ -1,7 +1,6 @@
 import subprocess
 from subprocess import STDOUT, PIPE
-from tempfile import NamedTemporaryFile
-from .utils import file_wrapper
+from utils import file_wrapper
 
 def _qdf(filename: str) -> None:
     """Convert a PDF file into QDF format (which is still a valid PDF) since QDF files are
