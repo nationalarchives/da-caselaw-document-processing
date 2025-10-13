@@ -79,7 +79,8 @@ def lambda_handler(event, context):
                 logger.error(f"Failed to process file {object_key}: {e}", exc_info=True)
                 continue
 
-            logger.info(f"Processing finished for event: {record['eventID']}")
+            # Log completion using available record information
+            logger.info(f"Processing finished on object: {object_key}")
 
     except Exception as e:
         logger.error(f"Lambda execution failed: {e}", exc_info=True)
