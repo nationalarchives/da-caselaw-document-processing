@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Development environment with all testing tools
+  dev:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - /app/.pytest_cache  # Cache pytest data
+    environment:
+      - PYTHONPATH=/app
+      - MPLBACKEND=Agg
+    working_dir: /app
+    command: bash
+    tty: true
+    stdin_open: true
+
+  # Run tests
+  test:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - ./test_outputs:/app/test_outputs
+    environment:
+      - PYTHONPATH=/app
+      - MPLBACKEND=Agg
+    working_dir: /app
+    command: python -m pytest -v --tb=short
+
+  # Run visual regression tests specifically
+  visual-test:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - ./test_outputs:/app/test_outputs
+      - /tmp:/tmp  # Mount /tmp so you can see images during debugging
+    environment:
+      - PYTHONPATH=/app
+      - MPLBACKEND=Agg
+    working_dir: /app
+    command: python -m pytest test_visual_regression.py -v -s
+
+  # Lambda function for deployment
+  lambda:
+    build:
+      context: .
+      target: production
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
+    ports:
+      - "9000:8080"  # Lambda Runtime Interface Emulator port

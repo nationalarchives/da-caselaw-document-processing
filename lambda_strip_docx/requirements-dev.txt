@@ -1,2 +1,3 @@
 pytest>=8.0.0
 moto[s3]>=4.0.0
+Pillow>=10.0.0  # For image processing in visual regression tests
