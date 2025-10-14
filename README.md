@@ -74,10 +74,21 @@ pip install -r lambda_strip_docx/requirements-dev.txt
 
 Place a sample DOCX with author metadata in `lambda_strip_docx/test_files/sample_with_author.docx` and run:
 
+**Option A: Run tests locally with Python:**
+
 ```sh
 cd lambda_strip_docx
 pytest
 ```
+
+**Option B: Run tests in Docker container (recommended - matches CI/CD):**
+
+```sh
+# From project root
+./run-tests.sh
+```
+
+This builds the test Docker image with all required system dependencies (including pdfcpu for PDF processing) and runs the complete test suite in the same environment used in CI/CD, ensuring consistency between local development and deployment.
 
 #### 4. Test Lambda End-to-End Locally
 
