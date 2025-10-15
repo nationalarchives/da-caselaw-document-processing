@@ -30,6 +30,10 @@ locals {
     Service     = "document-cleanser-lambda"
     ManagedBy   = "terraform"
   }
+
+
+
+
 }
 
 # Variables
@@ -135,7 +139,7 @@ locals {
 
 # Security Group for Lambda - STRICTLY NO INTERNET ACCESS
 module "document_cleanser_security_group" {
-  source = "github.com/nationalarchives/da-terraform-modules//security_group"
+  source = "github.com/nationalarchives/da-terraform-modules//security_group?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   vpc_id      = var.caselaw_vpc_id
   name        = "document-cleanser-lambda-sg"
@@ -162,7 +166,7 @@ module "document_cleanser_security_group" {
 
 # IAM Policies for Lambda with minimal permissions using DA modules
 module "s3_access_policy" {
-  source = "github.com/nationalarchives/da-terraform-modules//iam_policy"
+  source = "github.com/nationalarchives/da-terraform-modules//iam_policy?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   name        = "document-cleanser-lambda-s3-access"
   description = "Allows document cleanser Lambda to access unpublished assets bucket"
@@ -187,7 +191,7 @@ module "s3_access_policy" {
 }
 
 module "kms_access_policy" {
-  source = "github.com/nationalarchives/da-terraform-modules//iam_policy"
+  source = "github.com/nationalarchives/da-terraform-modules//iam_policy?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   name        = "document-cleanser-lambda-kms-access"
   description = "Allows document cleanser Lambda to decrypt unpublished assets bucket"
@@ -358,7 +362,7 @@ resource "aws_vpc_endpoint" "logs" {
 
 # ECR Repository for Lambda container images using DA modules
 module "document_cleanser_ecr" {
-  source = "github.com/nationalarchives/da-terraform-modules//ecr"
+  source = "github.com/nationalarchives/da-terraform-modules//ecr?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   repository_name             = "document-cleanser-lambda"
   expire_untagged_images_days = 7
@@ -375,7 +379,7 @@ module "document_cleanser_ecr" {
 # Document Cleanser Lambda Function using DA Terraform modules (Container-based)
 # ⚠️  WARNING: This container Lambda requires ECR VPC endpoints to work in isolated VPC
 module "document_cleanser_lambda" {
-  source = "github.com/nationalarchives/da-terraform-modules//lambda"
+  source = "github.com/nationalarchives/da-terraform-modules//lambda?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   function_name = "document-cleanser-lambda"
   description   = "Lambda function to strip author metadata from documents (DOCX, PDF, etc.)"
@@ -401,11 +405,9 @@ module "document_cleanser_lambda" {
   # IAM policies with minimal permissions
   policies = {}
 
-  policy_attachments = toset([
-    module.s3_access_policy.policy_arn,
-    module.kms_access_policy.policy_arn,
-    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-  ])
+  # Remove policy_attachments from module to avoid for_each issues with AWS Provider v6
+  # We'll handle these separately below
+  policy_attachments = toset([])
 
   # Lambda permissions for S3 to invoke the function
   lambda_invoke_permissions = {
@@ -420,11 +422,45 @@ module "document_cleanser_lambda" {
   depends_on = [
     module.s3_access_policy,
     module.kms_access_policy,
-    module.document_cleanser_security_group
+    module.document_cleanser_security_group,
+    module.document_cleanser_ecr
   ]
 }
 
+# Extract role name from Lambda module ARN for policy attachments
+locals {
+  lambda_role_name = split("/", module.document_cleanser_lambda.lambda_role_arn)[1]
+}
 
+# Manual policy attachments to avoid for_each issues with AWS Provider v6
+resource "aws_iam_role_policy_attachment" "lambda_s3_policy" {
+  role       = local.lambda_role_name
+  policy_arn = module.s3_access_policy.policy_arn
+
+  depends_on = [
+    module.document_cleanser_lambda,
+    module.s3_access_policy
+  ]
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_kms_policy" {
+  role       = local.lambda_role_name
+  policy_arn = module.kms_access_policy.policy_arn
+
+  depends_on = [
+    module.document_cleanser_lambda,
+    module.kms_access_policy
+  ]
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = local.lambda_role_name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+  depends_on = [
+    module.document_cleanser_lambda
+  ]
+}
 
 # S3 Bucket Notification (Note: This assumes the bucket already exists)
 # In practice, this might need to be applied separately if the bucket

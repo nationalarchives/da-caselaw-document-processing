@@ -1,0 +1,104 @@
+name: Terraform Plan - Staging
+
+on:
+  # Manual trigger via GitHub UI
+  workflow_dispatch:
+
+  # Automatic trigger on changes to Terraform files
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-plan-staging.yml"
+
+  # Run on PRs targeting staging-related branches
+  pull_request:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-plan-staging.yml"
+
+env:
+  AWS_REGION: eu-west-2
+  TERRAFORM_VERSION: 1.5.7
+  TF_IN_AUTOMATION: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-plan-staging:
+    name: Terraform Plan (Staging Environment)
+    runs-on: ubuntu-latest
+    environment: staging
+
+    permissions:
+      contents: read
+      pull-requests: write # Needed to post PR comments
+      id-token: write # Needed if using OIDC authentication
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          # Fetch full history for better context in plans
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }} # Add this secret to your repo
+          role-session-name: GitHubActions-TerraformPlan-Staging
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@651471c36a6092792c552e8b1bef71e592b462d8 # v3.1.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          # Enable Terraform CLI output for better debugging
+          terraform_wrapper: true
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init -input=false
+        working-directory: terraform
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: terraform
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color > plan_output.txt
+        working-directory: terraform
+        env:
+          TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
+          TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
+          TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
+          TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
+          # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
+        continue-on-error: true
+      - name: Post PR Comment with Full Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan_output.txt', 'utf8');
+            const output = `## Terraform Plan (Staging)\n\n\`\`\`hcl\n${plan}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Exit with Error if Plan Failed
+        if: steps.plan.outputs.PLAN_RESULT == 'error'
+        run: |
+          echo "❌ Terraform plan failed. Check the logs above for details."
+          exit 1
