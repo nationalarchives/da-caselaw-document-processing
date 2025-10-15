@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "lambda-strip-docx"
+version = "0.1.0"
+description = "AWS Lambda function for cleaning DOCX and PDF documents"
+authors = ["The National Archives <digitalrecords@nationalarchives.gov.uk>"]
+readme = "README.md"
+packages = [{include = "lambda_strip_docx", from = "."}]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+lxml = "5.3.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.3.3"
+moto = {extras = ["s3"], version = "5.0.16"}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev]
+optional = true

@@ -1,0 +1,42 @@
+# Terraform Variables Configuration for Document Cleaner Lambda
+# Copy this file to terraform.tfvars and customize for your environment
+
+# Environment configuration
+environment = "production"
+
+# VPC Configuration - Replace with your actual caselaw VPC ID
+caselaw_vpc_id = "vpc-xxxxxxxxxxxxxxxxx"
+
+# S3 Configuration - Replace with your actual unpublished assets bucket name
+unpublished_assets_bucket_name = "your-unpublished-assets-bucket-name"
+
+# KMS Configuration - Replace with your actual KMS key ARN for S3 bucket encryption
+unpublished_assets_kms_key_arn = "arn:aws:kms:eu-west-2:123456789012:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# S3 VPC Endpoint Prefix List - Replace with your S3 VPC endpoint prefix list ID
+# Leave empty ("") to allow HTTPS egress to internet instead of VPC endpoint
+# Get with: aws ec2 describe-managed-prefix-lists --filters "Name=prefix-list-name,Values=com.amazonaws.vpce.eu-west-2.s3"
+s3_prefix_list_id = "pl-xxxxxxxx"
+
+# How to get the required values:
+# 1. VPC ID: aws ec2 describe-vpcs --filters "Name=tag:Name,Values=*caselaw*" --query 'Vpcs[0].VpcId'
+# 2. S3 Bucket: Use your existing unpublished assets bucket name
+# 3. KMS Key: aws kms list-keys --query 'Keys[].KeyId' (then describe each to find the right one)
+# 4. S3 Prefix List: aws ec2 describe-managed-prefix-lists --filters "Name=prefix-list-name,Values=com.amazonaws.vpce.eu-west-2.s3"
+
+# Lambda Configuration (optional overrides)
+# lambda_timeout = 300
+# lambda_memory_size = 512
+# lambda_reserved_concurrency = 10
+# log_retention_in_days = 30
+
+# Security Configuration (optional)
+# enable_vpc_flow_logs = true
+# enable_detailed_monitoring = true
+
+# Tags (recommended)
+# additional_tags = {
+#   Project = "da-caselaw-document-processing"
+#   Owner   = "infrastructure-team"
+#   Purpose = "document-metadata-cleaning"
+# }

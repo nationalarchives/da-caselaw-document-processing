@@ -1,3 +1,0 @@
--r requirements.txt
-pytest>=8.0.0
-moto[s3]>=4.0.0

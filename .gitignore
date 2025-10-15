@@ -50,12 +50,9 @@ coverage.xml
 *.py,cover
 .hypothesis/
 
-# AWS SAM
-.aws-sam/
-samconfig.toml
-
 # Docker
 .dockerignore
+volume
 
 # Logs
 *.log
@@ -75,4 +72,20 @@ Thumbs.db
 *.temp
 .tmp/
 .temp/
-volume
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+.terraform.lock.hcl
+terraform.rc
+.terraformrc
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
