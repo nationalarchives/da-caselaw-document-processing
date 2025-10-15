@@ -38,3 +38,14 @@ repos:
     rev: v1.14.2
     hooks:
       - id: zizmor
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.90.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_tflint
+      - id: terraform_trivy
+        args:
+          - --hook-config=--parallelism-limit=1
+          - --args=--severity=CRITICAL
+          - --args=--ignorefile=__GIT_WORKING_DIR__/.trivyignore
