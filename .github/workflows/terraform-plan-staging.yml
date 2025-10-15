@@ -81,12 +81,7 @@ jobs:
         run: |
           # Create plan file for potential future apply
           # Suppress detailed output for security in public repo
-          terraform plan \
-            -var="environment=staging" \
-            -input=false \
-            -out=tfplan-staging \
-            -detailed-exitcode \
-            -no-color > plan_summary.txt 2>&1
+          terraform plan
 
           # Check plan exit code and create safe summary
           PLAN_EXIT_CODE=$?
