@@ -1,6 +1,7 @@
 import subprocess
 from subprocess import STDOUT, PIPE
 from utils import file_wrapper
+import rollbar
 
 def _qdf(filename: str) -> None:
     """Convert a PDF file into QDF format (which is still a valid PDF) since QDF files are

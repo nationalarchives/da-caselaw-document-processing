@@ -3,6 +3,10 @@ import boto3
 from urllib.parse import unquote_plus
 import clean_docx
 import clean_pdf
+import rollbar
+import os
+
+rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 __version__="0.1.0-dev"
 
