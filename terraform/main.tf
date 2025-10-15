@@ -204,7 +204,7 @@ module "kms_access_policy" {
         Resource = concat([var.unpublished_assets_kms_key_arn], var.legacy_kms_key_arns)
         Condition = {
           StringEquals = {
-            "kms:ViaService" = "s3.${data.aws_region.current.name}.amazonaws.com"
+            "kms:ViaService" = "s3.${data.aws_region.current.id}.amazonaws.com"
           }
         }
       }
@@ -252,7 +252,7 @@ resource "aws_security_group" "vpc_endpoints" {
 # ECR API VPC Endpoint - Required for container image metadata
 resource "aws_vpc_endpoint" "ecr_api" {
   vpc_id             = var.caselaw_vpc_id
-  service_name       = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
+  service_name       = "com.amazonaws.${data.aws_region.current.id}.ecr.api"
   vpc_endpoint_type  = "Interface"
   subnet_ids         = data.aws_subnets.private.ids
   security_group_ids = [aws_security_group.vpc_endpoints.id]
@@ -289,7 +289,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
 # ECR Docker Registry VPC Endpoint - Required for container image data
 resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_id             = var.caselaw_vpc_id
-  service_name       = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
+  service_name       = "com.amazonaws.${data.aws_region.current.id}.ecr.dkr"
   vpc_endpoint_type  = "Interface"
   subnet_ids         = data.aws_subnets.private.ids
   security_group_ids = [aws_security_group.vpc_endpoints.id]
@@ -321,7 +321,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 # CloudWatch Logs VPC Endpoint - Required for Lambda logging
 resource "aws_vpc_endpoint" "logs" {
   vpc_id             = var.caselaw_vpc_id
-  service_name       = "com.amazonaws.${data.aws_region.current.name}.logs"
+  service_name       = "com.amazonaws.${data.aws_region.current.id}.logs"
   vpc_endpoint_type  = "Interface"
   subnet_ids         = data.aws_subnets.private.ids
   security_group_ids = [aws_security_group.vpc_endpoints.id]
