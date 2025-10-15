@@ -16,42 +16,11 @@ Removes author and related metadata from Microsoft Word DOCX files to ensure pri
 - Preserves document content and formatting.
 - Handles errors and logs to CloudWatch.
 
-## Deployment Options
+## Deployment
 
-Choose between two deployment methods based on your needs:
+This project uses Terraform for infrastructure deployment. See the Terraform section below for deployment instructions.
 
-- **SAM Deployment**: Best for development, testing, and simple deployments
-- **Terraform Deployment**: Best for production environments requiring VPC integration, security groups, and enterprise-grade infrastructure
-
-### Option 1: SAM Deployment (Development/Testing)
-
-This Lambda function supports **two SAM deployment methods**:
-
-#### Option 1: ZIP Deployment (Recommended)
-
-Packages Python code and dependencies as a ZIP file:
-
-```sh
-sam build TNACaselawDocxStripAuthorFunctionZip --use-container
-sam deploy --guided
-```
-
-#### Option 2: Container Deployment
-
-Packages the Lambda as a Docker container:
-
-```sh
-sam build TNACaselawDocxStripAuthorFunctionContainer --use-container
-sam deploy --guided
-```
-
-**Automated Deployment:**
-
-- Deployment is managed via GitHub Actions on pushes to `main`
-- See `.github/workflows/deploy-docx-strip-author.yml` for the CI/CD pipeline
-- See `template.yml` for the complete AWS SAM template defining both deployment options
-
-### Local Development, Testing, and Deployment
+### Local Development and Testing
 
 #### 1. Python Environment
 
@@ -90,25 +59,9 @@ pytest
 
 This builds the test Docker image with all required system dependencies (including pdfcpu for PDF processing) and runs the complete test suite in the same environment used in CI/CD, ensuring consistency between local development and deployment.
 
-#### 4. Test Lambda End-to-End Locally
+#### 4. Test Lambda Locally
 
-You can test both the ZIP-based and Docker (container) Lambda locally using AWS SAM CLI:
-
-**a) ZIP-based Lambda:**
-
-```sh
-sam build -t template.yml --use-container -m lambda_strip_docx/requirements.txt
-sam local invoke TNACaselawDocxStripAuthorFunctionZip -e test-event.json
-```
-
-**b) Docker/Container Lambda:**
-
-```sh
-sam build -t template.yml --use-container
-sam local invoke TNACaselawDocxStripAuthorFunctionContainer -e test-event.json
-```
-
-Or, using Docker directly:
+You can test the Lambda locally using Docker:
 
 ```sh
 docker build -t docx-lambda-test -f lambda_strip_docx/Dockerfile lambda_strip_docx/
@@ -148,7 +101,7 @@ pre-commit run --all-files
 
 ---
 
-### Option 2: Terraform Infrastructure Deployment (Production)
+## Terraform Infrastructure Deployment
 
 **Current Status**: ✅ Successfully deployed and working in staging environment after manual deployment.
 

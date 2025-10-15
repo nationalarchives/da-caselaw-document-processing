@@ -8,7 +8,6 @@ repos:
       - id: check-merge-conflict
       - id: check-xml
       - id: check-yaml
-        exclude: ^template.yml
       - id: end-of-file-fixer
       - id: forbid-submodules
       - id: mixed-line-ending

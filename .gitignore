@@ -50,10 +50,6 @@ coverage.xml
 *.py,cover
 .hypothesis/
 
-# AWS SAM
-.aws-sam/
-samconfig.toml
-
 # Docker
 .dockerignore
 volume
