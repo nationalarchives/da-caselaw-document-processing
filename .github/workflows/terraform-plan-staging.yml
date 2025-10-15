@@ -1,4 +1,4 @@
-name: Terraform Plan - Staging (Security Hardened)
+name: Terraform Plan - Staging
 
 on:
   # Manual trigger via GitHub UI
