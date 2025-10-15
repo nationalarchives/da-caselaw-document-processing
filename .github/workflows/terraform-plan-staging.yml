@@ -23,6 +23,9 @@ env:
   TERRAFORM_VERSION: 1.5.7
   TF_IN_AUTOMATION: true
 
+permissions:
+  contents: read
+
 jobs:
   terraform-plan-staging:
     name: Terraform Plan (Staging Environment)
