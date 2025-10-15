@@ -16,9 +16,11 @@ RUN wget https://github.com/exiftool/exiftool/archive/refs/tags/12.96.tar.gz && 
     cd .. && \
     rm -rf exiftool-12.96 12.96.tar.gz
 
-# Install pdfcpu (required for PDF processing tests)
-RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@latest
-ENV PATH="/root/go/bin:${PATH}"
+# Install pdfcpu to /usr/local/bin (accessible by Lambda runtime user)
+RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@latest && \
+    cp /root/go/bin/pdfcpu /usr/local/bin/ && \
+    chmod 755 /usr/local/bin/pdfcpu && \
+    rm -rf /root/go
 
 # Install Python dependencies
 COPY requirements.txt ./
