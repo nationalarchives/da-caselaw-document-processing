@@ -15,8 +15,7 @@ terraform {
 
 # AWS Provider configuration
 provider "aws" {
-  region  = "eu-west-2"
-  profile = "AdministratorAccess-626206937213" # Use your AWS profile
+  region = "eu-west-2"
 }
 
 # Get current AWS account and region information
