@@ -17,24 +17,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
-
-      - name: Set up Python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
-        with:
-          python-version: "3.13"
-
-      - name: Install pdfcpu
-        run: go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@latest
-
-      - name: Install non-dockerised exiftool and qpdf
-        run: sudo apt-get install -y exiftool qpdf
-
-      - name: Install python dependencies
+      - name: Build test Docker image
         run: |
-          python -m pip install --upgrade pip
-          pip install -r lambda_strip_docx/requirements-dev.txt
+          echo "🔨 Building test Docker image..."
+          docker build --target test -t document-cleaner-test lambda_strip_docx/
 
-      - name: Run tests
+      - name: Run tests in Docker container
         run: |
-          pytest lambda_strip_docx/tests -vv
+          echo "🧪 Running tests in Docker container..."
+          docker run --rm document-cleaner-test
