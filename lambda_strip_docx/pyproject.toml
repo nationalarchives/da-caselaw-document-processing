@@ -12,7 +12,7 @@ lxml = "5.3.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.3.3"
-moto = {extras = ["s3"], version = "5.0.16"}
+moto = {extras = ["s3"], version = "5.1.14"}
 
 [build-system]
 requires = ["poetry-core"]
