@@ -1,6 +1,7 @@
 import subprocess
 from subprocess import STDOUT, PIPE
 from utils import file_wrapper
+from render import visually_identical
 import rollbar
 
 def _qdf(filename: str) -> None:
@@ -45,7 +46,10 @@ def _clean_pdf(filename: str) -> None:
 # using the functions above
 
 def clean(file_content):
-    return file_wrapper(file_content=file_content, fn=_clean_pdf)
+    new_content = file_wrapper(file_content=file_content, fn=_clean_pdf)
+    if not visually_identical(file_content, new_content):
+        rollbar.report_message("PDF image visually changed", level="warning")
+    return new_content
 
 def qdf(file_content):
     return file_wrapper(file_content=file_content, fn=_qdf)
