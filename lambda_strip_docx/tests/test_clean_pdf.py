@@ -1,5 +1,5 @@
 import clean_pdf
-from render import hash_pdf_image, ppm_list
+from render_pdf import hash_pdf_image
 
 def test_clean_pdf_works(input_pdf):
     # Note: we can't check the image is the same as it contains annotations which get flattened onto the image

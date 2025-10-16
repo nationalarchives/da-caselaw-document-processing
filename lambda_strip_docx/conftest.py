@@ -60,6 +60,23 @@ def s3_with_docx_file(s3_setup, input_docx):
     return s3_client, bucket_name, object_key
 
 @pytest.fixture
+def s3_with_multipage_pdf_file(s3_setup, input_multipage_pdf):
+    """S3 environment with a PDF file uploaded"""
+    s3_client, bucket_name = s3_setup
+    object_key = "multipage.pdf"
+
+    # Upload the DOCX file to S3
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=input_multipage_pdf,
+        ContentType='application/pdf'
+    )
+
+    return s3_client, bucket_name, object_key
+
+
+@pytest.fixture
 def s3_with_pdf_file(s3_setup, input_pdf):
     """S3 environment with a PDF file uploaded"""
     s3_client, bucket_name = s3_setup
