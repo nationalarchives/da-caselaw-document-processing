@@ -5,10 +5,14 @@ import clean_docx
 import clean_pdf
 import rollbar
 import os
+import tomllib
 
-rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
+with open("pyproject.toml", "rb") as f:
+    pyproject = tomllib.load(f)
+    __version__ = pyproject['tool']['poetry']['version']
 
-__version__="0.1.0-dev"
+rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"), version=__version__)
+rollbar.report_message('Rollbar is configured correctly', 'info')
 
 def lambda_handler(event, context):
     logger = logging.getLogger()
