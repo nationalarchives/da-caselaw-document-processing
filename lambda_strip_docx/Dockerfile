@@ -52,7 +52,7 @@ RUN poetry install --with=dev --no-root
 # Override the entrypoint for tests
 ENTRYPOINT []
 # Default command for test stage - run all pytest tests
-CMD ["python", "-m", "pytest", "tests/", "-vvv"]
+CMD ["python", "-m", "pytest", "tests/"]
 
 # Production stage - minimal runtime image
 FROM base AS production
