@@ -31,8 +31,3 @@ def hash_pdf_image(bytes) -> str:
 def visually_identical(first_content, second_content) -> bool:
     """Are these two PDFs visually identical?"""
     return hash_pdf_image(first_content) == hash_pdf_image(second_content)
-
-def diff(a,b) -> None:
-    """Debug helper function which shows the position of the first difference in the file."""
-    index = next(compress(count(), map(ne, a, b)))
-    print(a[index-50:index+50], b[index-50:index+50])
