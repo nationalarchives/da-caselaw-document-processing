@@ -1,12 +1,7 @@
 import os
-import urllib
 import pytest
 import boto3
-import logging
 from moto import mock_aws
-from zipfile import ZipFile
-import io
-import re
 from clean_docx import strip_docx_author_metadata_from_docx
 from lambda_function import lambda_handler, __version__
 
@@ -15,35 +10,24 @@ def load_bytes(filename):
         return f.read()
 
 # Fixtures
-@pytest.fixture
-def sample_docx_path():
-    """Path to the sample DOCX file with author metadata"""
-    return os.path.join(os.path.dirname(__file__), "test_files", "sample_with_author.docx")
+
+def test_file(filename):
+    return os.path.join(os.path.dirname(__file__), "test_files", filename)
 
 @pytest.fixture
-def sample_pdf_path():
-    """Path to the sample PDF file with author metadata"""
-    return os.path.join(os.path.dirname(__file__), "test_files", "sample_pdf_with_author.pdf")
-
-@pytest.fixture
-def sample_qdf_path():
-    """Path to the sample QDF file with author metadata"""
-    return os.path.join(os.path.dirname(__file__), "test_files", "sample_pdf_with_author_qdf.pdf")
-
-@pytest.fixture
-def input_docx(sample_docx_path):
+def input_docx():
     """Load sample DOCX file as bytes"""
-    return load_bytes(sample_docx_path)
+    return load_bytes(test_file("sample_with_author.docx"))
 
 @pytest.fixture
-def input_pdf(sample_pdf_path):
+def input_pdf():
     """Load sample PDF file as bytes"""
-    return load_bytes(sample_pdf_path)
+    return load_bytes(test_file("sample_pdf_with_author.pdf"))
 
 @pytest.fixture
-def input_qdf(sample_qdf_path):
-    """Load sample QDF file as bytes"""
-    return load_bytes(sample_qdf_path)
+def input_multipage_pdf():
+    """Load sample PDF file as bytes"""
+    return load_bytes(test_file("multipage.pdf"))
 
 @pytest.fixture
 def s3_bucket_name():
@@ -74,6 +58,23 @@ def s3_with_docx_file(s3_setup, input_docx):
     )
 
     return s3_client, bucket_name, object_key
+
+@pytest.fixture
+def s3_with_multipage_pdf_file(s3_setup, input_multipage_pdf):
+    """S3 environment with a PDF file uploaded"""
+    s3_client, bucket_name = s3_setup
+    object_key = "multipage.pdf"
+
+    # Upload the DOCX file to S3
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=input_multipage_pdf,
+        ContentType='application/pdf'
+    )
+
+    return s3_client, bucket_name, object_key
+
 
 @pytest.fixture
 def s3_with_pdf_file(s3_setup, input_pdf):
