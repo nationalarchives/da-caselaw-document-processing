@@ -8,7 +8,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.67"
+      version = "~> 6.0"
     }
   }
 }
@@ -135,7 +135,7 @@ locals {
 
 # Security Group for Lambda - STRICTLY NO INTERNET ACCESS
 module "document_cleanser_security_group" {
-  source = "github.com/nationalarchives/da-terraform-modules//security_group"
+  source = "github.com/nationalarchives/da-terraform-modules//security_group?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   vpc_id      = var.caselaw_vpc_id
   name        = "document-cleanser-lambda-sg"
@@ -162,7 +162,7 @@ module "document_cleanser_security_group" {
 
 # IAM Policies for Lambda with minimal permissions using DA modules
 module "s3_access_policy" {
-  source = "github.com/nationalarchives/da-terraform-modules//iam_policy"
+  source = "github.com/nationalarchives/da-terraform-modules//iam_policy?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   name        = "document-cleanser-lambda-s3-access"
   description = "Allows document cleanser Lambda to access unpublished assets bucket"
@@ -187,7 +187,7 @@ module "s3_access_policy" {
 }
 
 module "kms_access_policy" {
-  source = "github.com/nationalarchives/da-terraform-modules//iam_policy"
+  source = "github.com/nationalarchives/da-terraform-modules//iam_policy?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   name        = "document-cleanser-lambda-kms-access"
   description = "Allows document cleanser Lambda to decrypt unpublished assets bucket"
@@ -204,7 +204,7 @@ module "kms_access_policy" {
         Resource = concat([var.unpublished_assets_kms_key_arn], var.legacy_kms_key_arns)
         Condition = {
           StringEquals = {
-            "kms:ViaService" = "s3.${data.aws_region.current.name}.amazonaws.com"
+            "kms:ViaService" = "s3.${data.aws_region.current.id}.amazonaws.com"
           }
         }
       }
@@ -252,7 +252,7 @@ resource "aws_security_group" "vpc_endpoints" {
 # ECR API VPC Endpoint - Required for container image metadata
 resource "aws_vpc_endpoint" "ecr_api" {
   vpc_id             = var.caselaw_vpc_id
-  service_name       = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
+  service_name       = "com.amazonaws.${data.aws_region.current.id}.ecr.api"
   vpc_endpoint_type  = "Interface"
   subnet_ids         = data.aws_subnets.private.ids
   security_group_ids = [aws_security_group.vpc_endpoints.id]
@@ -289,7 +289,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
 # ECR Docker Registry VPC Endpoint - Required for container image data
 resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_id             = var.caselaw_vpc_id
-  service_name       = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
+  service_name       = "com.amazonaws.${data.aws_region.current.id}.ecr.dkr"
   vpc_endpoint_type  = "Interface"
   subnet_ids         = data.aws_subnets.private.ids
   security_group_ids = [aws_security_group.vpc_endpoints.id]
@@ -321,7 +321,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 # CloudWatch Logs VPC Endpoint - Required for Lambda logging
 resource "aws_vpc_endpoint" "logs" {
   vpc_id             = var.caselaw_vpc_id
-  service_name       = "com.amazonaws.${data.aws_region.current.name}.logs"
+  service_name       = "com.amazonaws.${data.aws_region.current.id}.logs"
   vpc_endpoint_type  = "Interface"
   subnet_ids         = data.aws_subnets.private.ids
   security_group_ids = [aws_security_group.vpc_endpoints.id]
@@ -358,7 +358,7 @@ resource "aws_vpc_endpoint" "logs" {
 
 # ECR Repository for Lambda container images using DA modules
 module "document_cleanser_ecr" {
-  source = "github.com/nationalarchives/da-terraform-modules//ecr"
+  source = "github.com/nationalarchives/da-terraform-modules//ecr?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   repository_name             = "document-cleanser-lambda"
   expire_untagged_images_days = 7
@@ -375,7 +375,7 @@ module "document_cleanser_ecr" {
 # Document Cleanser Lambda Function using DA Terraform modules (Container-based)
 # ⚠️  WARNING: This container Lambda requires ECR VPC endpoints to work in isolated VPC
 module "document_cleanser_lambda" {
-  source = "github.com/nationalarchives/da-terraform-modules//lambda"
+  source = "github.com/nationalarchives/da-terraform-modules//lambda?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
 
   function_name = "document-cleanser-lambda"
   description   = "Lambda function to strip author metadata from documents (DOCX, PDF, etc.)"

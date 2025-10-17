@@ -1,0 +1,8 @@
+# Trivy ignore file for terraform security scanning
+# This file allows us to ignore specific security findings that are false positives
+# or acceptable risks for this project
+
+# Example entries - customize based on actual findings:
+# AVD-AWS-0001
+# CVE-2021-12345
+# DS002

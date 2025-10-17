@@ -1,0 +1,273 @@
+name: Terraform Plan - Staging
+
+on:
+  # Manual trigger via GitHub UI
+  workflow_dispatch:
+
+  # Automatic trigger on changes to Terraform files
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-plan-staging.yml"
+
+  # Run on PRs targeting staging-related branches
+  pull_request:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-plan-staging.yml"
+
+env:
+  AWS_REGION: eu-west-2
+  TERRAFORM_VERSION: 1.5.7
+  TF_IN_AUTOMATION: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-plan-staging:
+    name: Terraform Plan (Staging Environment)
+    runs-on: ubuntu-latest
+    environment: staging
+
+    permissions:
+      contents: read
+      pull-requests: write # Needed to post PR comments
+      id-token: write # Needed if using OIDC authentication
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          # Fetch full history for better context in plans
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }} # Add this secret to your repo
+          role-session-name: GitHubActions-TerraformPlan-Staging
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@651471c36a6092792c552e8b1bef71e592b462d8 # v3.1.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          # Enable Terraform CLI output for better debugging
+          terraform_wrapper: true
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+        working-directory: terraform
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init -input=false
+        working-directory: terraform
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: terraform
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          # Create plan file for potential future apply
+          # Suppress detailed output for security in public repo
+          terraform plan
+
+          # Check plan exit code and create safe summary
+          PLAN_EXIT_CODE=$?
+          echo "PLAN_EXIT_CODE=$PLAN_EXIT_CODE" >> $GITHUB_OUTPUT
+
+          if [ $PLAN_EXIT_CODE -eq 0 ]; then
+            echo "PLAN_RESULT=no_changes" >> $GITHUB_OUTPUT
+            echo "No infrastructure changes detected"
+          elif [ $PLAN_EXIT_CODE -eq 2 ]; then
+            echo "PLAN_RESULT=changes_detected" >> $GITHUB_OUTPUT
+            echo "Infrastructure changes detected - plan completed successfully"
+            # Extract only safe summary information
+            grep -E "Plan:|No changes|Error:" plan_summary.txt || echo "Changes detected but details hidden for security"
+          else
+            echo "PLAN_RESULT=error" >> $GITHUB_OUTPUT
+            echo "Plan failed with exit code: $PLAN_EXIT_CODE"
+            # Only show error lines, not sensitive details
+            grep -E "Error:|Warning:" plan_summary.txt || echo "Plan execution failed"
+          fi
+        working-directory: terraform
+        env:
+          # Terraform variables from GitHub Secrets (same as existing deploy workflow)
+          TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
+          TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
+          TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
+          TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
+          # Optional: Legacy KMS keys if needed
+          # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
+        continue-on-error: true
+
+      # Note: Plan artifacts removed for security in public repository
+      # Plan files may contain sensitive infrastructure details
+
+      - name: Create Plan Summary
+        if: always()
+        id: summary
+        env:
+          WORKFLOW_NAME: ${{ github.workflow }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          FMT_OUTCOME: ${{ steps.fmt.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PLAN_RESULT: ${{ steps.plan.outputs.PLAN_RESULT }}
+        run: |
+          echo "## Terraform Plan Summary - Staging Environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** $WORKFLOW_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** $BRANCH_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** $COMMIT_SHA" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** staging" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Format check results
+          if [ "$FMT_OUTCOME" = "success" ]; then
+            echo "✅ **Format Check:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Format Check:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Validation results
+          if [ "$VALIDATE_OUTCOME" = "success" ]; then
+            echo "✅ **Validation:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Validation:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Plan results (secure mode for public repo)
+          case "$PLAN_RESULT" in
+            "no_changes")
+              echo "✅ **Plan:** No changes required" >> $GITHUB_STEP_SUMMARY
+              ;;
+            "changes_detected")
+              echo "⚠️ **Plan:** Infrastructure changes detected" >> $GITHUB_STEP_SUMMARY
+              echo "🔒 **Security:** Detailed output hidden (public repo)" >> $GITHUB_STEP_SUMMARY
+              ;;
+            "error")
+              echo "❌ **Plan:** Execution failed" >> $GITHUB_STEP_SUMMARY
+              ;;
+            *)
+              echo "❓ **Plan:** Unknown status" >> $GITHUB_STEP_SUMMARY
+              ;;
+          esac
+
+      - name: Post PR Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          FMT_OUTCOME: ${{ steps.fmt.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PLAN_RESULT: ${{ steps.plan.outputs.PLAN_RESULT }}
+        with:
+          script: |
+            const branchName = process.env.BRANCH_NAME;
+            const commitSha = process.env.COMMIT_SHA;
+            const runId = process.env.RUN_ID;
+            const serverUrl = process.env.SERVER_URL;
+            const repository = process.env.REPOSITORY;
+            const fmtOutcome = process.env.FMT_OUTCOME;
+            const validateOutcome = process.env.VALIDATE_OUTCOME;
+            const planResult = process.env.PLAN_RESULT || 'unknown';
+
+            let planSummary = '❓ Unknown plan status';
+            if (planResult === 'no_changes') {
+              planSummary = '✅ No infrastructure changes required';
+            } else if (planResult === 'changes_detected') {
+              planSummary = '⚠️ Infrastructure changes detected - review required';
+            } else if (planResult === 'error') {
+              planSummary = '❌ Plan execution failed';
+            }
+
+            const output = \`## 🔒 Terraform Plan Results - Staging Environment (Secure Mode)
+
+            **📋 Plan Status:**
+            - **Environment:** staging
+            - **Branch:** \\\`\${branchName}\\\`
+            - **Commit:** \\\`\${commitSha}\\\`
+            - **Workflow:** [\\\`\${runId}\\\`](\${serverUrl}/\${repository}/actions/runs/\${runId})
+
+            **🔍 Validation Results:**
+            - **Format Check:** \\\`\${fmtOutcome}\\\`
+            - **Terraform Validate:** \\\`\${validateOutcome}\\\`
+            - **Terraform Plan:** \\\`\${planResult}\\\`
+
+            **📊 Plan Summary:**
+            \${planSummary}
+
+            > 🔒 **Security Note:** Detailed plan output is hidden to protect sensitive infrastructure information in this public repository. Plan details are available in the workflow logs for authorized team members.
+
+            *This comment was automatically generated by the Terraform Plan workflow.*\`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Exit with Error if Plan Failed
+        if: steps.plan.outputs.PLAN_RESULT == 'error'
+        run: |
+          echo "❌ Terraform plan failed. Check the logs above for details."
+          exit 1
+
+      - name: Security Scan Notice
+        if: steps.plan.outputs.PLAN_RESULT == 'changes_detected'
+        run: |
+          echo "::notice::Infrastructure changes detected - consider running security scanning tools"
+          echo "🔒 For enhanced security, consider adding:"
+          echo "- Checkov (terraform security scanning)"
+          echo "- tfsec (terraform static analysis)"
+          echo "- Terrascan (policy as code)"
+
+  # Optional job to notify teams about plan results
+  notify-results:
+    name: Notify Plan Results
+    runs-on: ubuntu-latest
+    needs: [terraform-plan-staging]
+    if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Send Notification
+        env:
+          STATUS: ${{ needs.terraform-plan-staging.result }}
+        run: |
+          case $STATUS in
+            "success")
+              echo "✅ Terraform plan completed successfully for staging environment"
+              ;;
+            "failure")
+              echo "❌ Terraform plan failed for staging environment"
+              ;;
+            *)
+              echo "⚠️ Terraform plan completed with status: $STATUS"
+              ;;
+          esac
+
+          # Here you could add integrations with:
+          # - Slack notifications
+          # - Teams notifications
+          # - Email alerts
+          # - Custom webhook calls
