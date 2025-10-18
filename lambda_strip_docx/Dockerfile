@@ -1,5 +1,5 @@
 # Base stage - common setup
-FROM public.ecr.aws/lambda/python:3.13@sha256:b00aa45f85d5b940c3409ac6ea972f4f54002762af89a06d8d8a81b6293175e6 AS base
+FROM public.ecr.aws/lambda/python:3.13@sha256:8021a863015905d63815879c9418c49188b5705b8f7665fc3f3132e1ccee17ba AS base
 
 # Install system dependencies for PDF processing tests
 RUN microdnf update -y && \
