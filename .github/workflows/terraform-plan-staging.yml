@@ -76,6 +76,7 @@ jobs:
           terraform plan -no-color > plan_output.txt
         working-directory: terraform
         env:
+          TF_VAR_backend_bucket: ${{ secrets.TF_VAR_backend_bucket }}
           TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
           TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
           TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}

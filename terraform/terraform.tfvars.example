@@ -4,6 +4,10 @@
 # Environment configuration
 environment = "production"
 
+# Terraform Backend Configuration
+# Set these for staging/production as needed
+backend_bucket = "your-terraform-backend-bucket-name"
+
 # VPC Configuration - Replace with your actual caselaw VPC ID
 caselaw_vpc_id = "vpc-xxxxxxxxxxxxxxxxx"
 
