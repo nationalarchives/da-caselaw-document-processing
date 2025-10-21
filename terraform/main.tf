@@ -25,22 +25,14 @@ data "aws_region" "current" {}
 # Common tags for all resources
 locals {
   common_tags = {
-    Project     = "da-caselaw-document-processing"
-    Environment = var.environment
-    Service     = "document-cleanser-lambda"
-    ManagedBy   = "terraform"
+    Project   = "da-caselaw-document-processing"
+    Service   = "document-cleanser-lambda"
+    ManagedBy = "terraform"
   }
 
 
 
 
-}
-
-# Variables
-variable "environment" {
-  description = "Environment name (e.g., dev, staging, production)"
-  type        = string
-  default     = "production"
 }
 
 variable "backend_bucket" {

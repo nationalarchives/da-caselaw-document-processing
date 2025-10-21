@@ -175,7 +175,6 @@ cp terraform.tfvars.example terraform.tfvars
 Edit `terraform.tfvars` with your actual values:
 
 ```hcl
-environment                    = "production"
 caselaw_vpc_id                = "vpc-your-actual-vpc-id"
 unpublished_assets_bucket_name = "your-unpublished-assets-bucket"
 unpublished_assets_kms_key_arn = "arn:aws:kms:region:account:key/key-id"
