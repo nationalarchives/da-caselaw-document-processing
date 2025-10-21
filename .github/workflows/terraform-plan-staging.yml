@@ -73,7 +73,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -no-color > plan_output.txt
+          terraform plan
         working-directory: terraform
         env:
           TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
@@ -82,20 +82,6 @@ jobs:
           TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
           # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
         continue-on-error: true
-      - name: Post PR Comment with Full Plan
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('terraform/plan_output.txt', 'utf8');
-            const output = `## Terraform Plan (Staging)\n\n\`\`\`hcl\n${plan}\n\`\`\``;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
 
       - name: Exit with Error if Plan Failed
         if: steps.plan.outputs.PLAN_RESULT == 'error'
