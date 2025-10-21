@@ -175,7 +175,6 @@ cp terraform.tfvars.example terraform.tfvars
 Edit `terraform.tfvars` with your actual values:
 
 ```hcl
-environment                    = "production"
 caselaw_vpc_id                = "vpc-your-actual-vpc-id"
 unpublished_assets_bucket_name = "your-unpublished-assets-bucket"
 unpublished_assets_kms_key_arn = "arn:aws:kms:region:account:key/key-id"
@@ -381,6 +380,18 @@ This approach provides better separation of concerns and allows endpoint reuse a
 
 ## CI/CD Deployment with GitHub Actions
 
+### Using Secrets for Terraform S3 Backend
+
+To securely set the S3 backend bucket for Terraform, add a secret (e.g., `STAGING_TF_BACKEND_BUCKET`) to your GitHub environment. Then use it in your workflow:
+
+```yaml
+- name: Terraform Init (Staging)
+  run: terraform init -backend-config="bucket=${{ secrets.STAGING_TF_BACKEND_BUCKET }}"
+  working-directory: terraform
+```
+
+This ensures the bucket name is not hardcoded and is securely managed like your other secrets.
+
 ### Overview
 
 For automated deployment using GitHub Actions, you'll need to securely manage Terraform variables. The recommended approach uses GitHub Environments with encrypted secrets.
@@ -442,7 +453,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}"
         working-directory: terraform
 
       - name: Terraform Plan

@@ -1,8 +1,9 @@
 # Terraform Variables Configuration for Document Cleaner Lambda
 # Copy this file to terraform.tfvars and customize for your environment
 
-# Environment configuration
-environment = "production"
+# Terraform Backend Configuration
+# Set these for staging/production as needed
+backend_bucket = "your-terraform-backend-bucket-name"
 
 # VPC Configuration - Replace with your actual caselaw VPC ID
 caselaw_vpc_id = "vpc-xxxxxxxxxxxxxxxxx"
