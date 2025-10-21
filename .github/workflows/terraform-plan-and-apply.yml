@@ -1,26 +1,38 @@
-name: Terraform Plan
+name: Terraform Plan and Apply
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Environment to run plan against"
+        description: "Environment to run plan/apply against"
         required: true
         default: "staging"
         type: choice
         options:
           - staging
           - production
+      apply:
+        description: "Run terraform apply? (true/false)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
   push:
-    branches: [main]
+    branches:
+      - main
+    tags:
+      - "v*"
     paths:
       - "terraform/**"
-      - ".github/workflows/terraform-plan.yml"
+      - ".github/workflows/terraform-plan-and-apply.yml"
   pull_request:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "terraform/**"
-      - ".github/workflows/terraform-plan.yml"
+      - ".github/workflows/terraform-plan-and-apply.yml"
 
 env:
   AWS_REGION: eu-west-2
@@ -38,6 +50,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
+      TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
+      TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
+      TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
+      # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -63,12 +81,9 @@ jobs:
         run: terraform validate -no-color
         working-directory: terraform
       - name: Terraform Plan
-        run: |
-          terraform plan
+        run: terraform plan
         working-directory: terraform
-        env:
-          TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
-          TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
-          TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
-          TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
-          # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
+      - name: Terraform Apply
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.apply == 'true' && ((github.event.inputs.environment == 'staging' && github.ref == 'refs/heads/main') || (github.event.inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v'))) }}
+        run: terraform apply -auto-approve
+        working-directory: terraform
