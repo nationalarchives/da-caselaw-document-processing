@@ -35,11 +35,6 @@ locals {
 
 }
 
-variable "backend_bucket" {
-  description = "S3 bucket for Terraform backend state"
-  type        = string
-}
-
 variable "caselaw_vpc_id" {
   description = "The ID of the existing caselaw VPC"
   type        = string
