@@ -29,9 +29,12 @@ RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
     chmod 755 /usr/local/bin/pdfcpu && \
     rm -rf /root/go
 
+RUN rm -rf /usr/lib/golang
+
+
 # Install Poetry
-RUN pip install --upgrade pip==25.2 && \
-    pip install poetry==2.2.0
+RUN pip install --upgrade pip==25.2 --no-cache-dir && \
+    pip install poetry==2.2.0 --no-cache-dir
 
 # Configure Poetry and install dependencies
 ENV POETRY_NO_INTERACTION=1
