@@ -24,7 +24,7 @@ RUN wget https://github.com/exiftool/exiftool/archive/refs/tags/13.38.tar.gz && 
     rm -rf exiftool-13.38 13.38.tar.gz
 
 # Install pdfcpu to /usr/local/bin (accessible by Lambda runtime user)
-RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.0 && \
+RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
     cp /root/go/bin/pdfcpu /usr/local/bin/ && \
     chmod 755 /usr/local/bin/pdfcpu && \
     rm -rf /root/go
