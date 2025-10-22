@@ -30,12 +30,31 @@ on:
     paths:
       - "terraform/**"
       - ".github/workflows/terraform-plan-and-apply.yml"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "terraform/**"
-      - ".github/workflows/terraform-plan-and-apply.yml"
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      apply:
+        required: false
+        type: string
+        default: "false"
+      ECR_IMAGE_TAG:
+        required: true
+        type: string
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      TF_BACKEND_BUCKET:
+        required: true
+      TF_VAR_caselaw_vpc_id:
+        required: true
+      TF_VAR_unpublished_assets_bucket_name:
+        required: true
+      TF_VAR_unpublished_assets_kms_key_arn:
+        required: true
+      TF_VAR_s3_prefix_list_id:
+        required: true
 
 env:
   AWS_REGION: eu-west-2
@@ -91,7 +110,7 @@ jobs:
           terraform plan -input=false -var="ECR_IMAGE_TAG=$ECR_IMAGE_TAG"
         working-directory: terraform
       - name: Terraform Apply
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.apply == 'true' && ((github.event.inputs.environment == 'staging' && github.ref == 'refs/heads/main') || (github.event.inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v'))) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && github.event.inputs.apply == 'true' && ((github.event.inputs.environment == 'staging' && github.ref == 'refs/heads/main') || (github.event.inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v'))) }}
         env:
           ECR_IMAGE_TAG: ${{ github.event.inputs.ECR_IMAGE_TAG }}
         run: |
