@@ -1,0 +1,175 @@
+name: Build, Deploy, and Trigger Terraform Apply
+on:
+  push:
+    branches:
+      - main
+      - docker-build-and-deploy
+    tags:
+      - "v*"
+    paths:
+      - "lambda_strip_docx/**"
+      - ".github/workflows/docker-build-and-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to build and deploy to"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+jobs:
+  build-deploy:
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    name: Build, Push, and Deploy Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup AWS
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-west-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 #v2.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Install Wiz CLI
+        run: |
+          curl -o wizcli https://wizcli.app.wiz.io/wizcli
+          chmod +x wizcli
+
+      - name: Authenticate to Wiz API
+        env:
+          WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}
+          WIZ_CLIENT_SECRET: ${{ secrets.WIZ_CLIENT_SECRET }}
+        run: |
+          ./wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+
+      - name: Scan Dockerfile with Wiz CLI
+        env:
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          ./wizcli iac scan --path lambda_strip_docx --name "$ECR_REPOSITORY-$IMAGE_TAG"
+
+      - name: Set environment variables
+        id: set_env
+        run: |
+          ENVIRONMENT="staging"
+          IMAGE_TAG="${GITHUB_SHA}"
+          # For production, use the tag name as the image tag
+          if [ "${GITHUB_REF}" != "refs/heads/main" ] && [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            ENVIRONMENT="production"
+            IMAGE_TAG="${GITHUB_REF_NAME}"
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ -n "$ENVIRONMENT" ]; then
+              ENVIRONMENT="$ENVIRONMENT"
+            fi
+            if [ -n "$INPUT_IMAGE_TAG" ]; then
+              IMAGE_TAG="$INPUT_IMAGE_TAG"
+            fi
+          fi
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+      - name: Build and tag Docker image
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          if [ -z "$ECR_REGISTRY" ] || [ -z "$ECR_REPOSITORY" ]; then
+            echo "ECR_REGISTRY or ECR_REPOSITORY is not set. Aborting build."
+            exit 1
+          fi
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG lambda_strip_docx/
+
+      - name: Wiz Docker Scan
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          ./wizcli docker scan --image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Push docker image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Wiz Docker Tag
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          ./wizcli docker tag --image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - name: Set up Git user
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+      - name: Update image tag in tfvars
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          ENV_FILE="terraform/image.staging.auto.tfvars"
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="staging"
+          fi
+          if [ "$ENVIRONMENT" = "production" ]; then
+            ENV_FILE="terraform/image.production.auto.tfvars"
+          fi
+          echo "docker_image_tag = \"$IMAGE_TAG\"" > $ENV_FILE
+      - name: Commit and push changes
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          ENV_FILE="terraform/image.staging.auto.tfvars"
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="staging"
+          fi
+          if [ "$ENVIRONMENT" = "production" ]; then
+            ENV_FILE="terraform/image.production.auto.tfvars"
+          fi
+          git add $ENV_FILE
+          git commit -m "Update $ENV_FILE Docker image tag to $IMAGE_TAG [ci skip]"
+          git push
+      - name: Trigger terraform plan-apply dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="staging"
+          fi
+          if [ "$ENVIRONMENT" = "production" ] && [[ "$REF" == refs/tags/v* ]]; then
+            echo "Production deploy only allowed on release tags. Skipping."
+          else
+            curl -L \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/terraform-plan-and-apply.yml/dispatches \
+              -d "{\"ref\":\"$REF\",\"inputs\":{\"environment\":\"$ENVIRONMENT\",\"apply\":\"true\"}}"

@@ -36,10 +36,11 @@ locals {
     Service   = "document-cleanser-lambda"
     ManagedBy = "terraform"
   }
+}
 
-
-
-
+variable "ECR_IMAGE_TAG" {
+  description = "Tag of the Docker image to deploy for the Lambda"
+  type        = string
 }
 
 variable "caselaw_vpc_id" {
@@ -385,7 +386,7 @@ module "document_cleanser_lambda" {
 
   # Container configuration - REQUIRES ECR VPC endpoints for offline operation
   use_image = true
-  image_url = "${module.document_cleanser_ecr.repository_url}:latest"
+  image_url = "${module.document_cleanser_ecr.repository_url}:${var.ECR_IMAGE_TAG}"
 
   memory_size     = 512
   timeout_seconds = 300
