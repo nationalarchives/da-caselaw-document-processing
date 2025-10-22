@@ -29,6 +29,8 @@ jobs:
       id-token: write
       actions: read
       pull-requests: read
+    outputs:
+      image_tag: ${{ steps.set_env.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -69,22 +71,27 @@ jobs:
 
       - name: Set environment variables
         id: set_env
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          ENVIRONMENT="staging"
-          IMAGE_TAG="${GITHUB_SHA}"
-          # For production, use the tag name as the image tag
-          if [ "${GITHUB_REF}" != "refs/heads/main" ] && [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            ENVIRONMENT="production"
-            IMAGE_TAG="${GITHUB_REF_NAME}"
+          # By default, environment is staging unless explicitly set by user in workflow_dispatch.
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="staging"
           fi
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            if [ -n "$ENVIRONMENT" ]; then
-              ENVIRONMENT="$ENVIRONMENT"
+
+          # For production, require a tag and use the tag name as IMAGE_TAG
+          if [ "$ENVIRONMENT" = "production" ]; then
+            if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+              echo "Error: Production deploys must use a GitHub release tag (refs/tags/v*) as the reference."
+              exit 1
             fi
-            if [ -n "$INPUT_IMAGE_TAG" ]; then
-              IMAGE_TAG="$INPUT_IMAGE_TAG"
-            fi
+            IMAGE_TAG="$GITHUB_REF_NAME"
+          else
+            IMAGE_TAG="$GITHUB_SHA"
           fi
+
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
       - name: Build and tag Docker image
@@ -122,54 +129,22 @@ jobs:
           IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
         run: |
           ./wizcli docker tag --image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-      - name: Set up Git user
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-      - name: Update image tag in tfvars
-        env:
-          ENVIRONMENT: ${{ github.event.inputs.environment }}
-          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
-        run: |
-          ENV_FILE="terraform/image.staging.auto.tfvars"
-          if [ -z "$ENVIRONMENT" ]; then
-            ENVIRONMENT="staging"
-          fi
-          if [ "$ENVIRONMENT" = "production" ]; then
-            ENV_FILE="terraform/image.production.auto.tfvars"
-          fi
-          echo "docker_image_tag = \"$IMAGE_TAG\"" > $ENV_FILE
-      - name: Commit and push changes
-        env:
-          ENVIRONMENT: ${{ github.event.inputs.environment }}
-          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
-        run: |
-          ENV_FILE="terraform/image.staging.auto.tfvars"
-          if [ -z "$ENVIRONMENT" ]; then
-            ENVIRONMENT="staging"
-          fi
-          if [ "$ENVIRONMENT" = "production" ]; then
-            ENV_FILE="terraform/image.production.auto.tfvars"
-          fi
-          git add $ENV_FILE
-          git commit -m "Update $ENV_FILE Docker image tag to $IMAGE_TAG [ci skip]"
-          git push
-      - name: Trigger terraform plan-apply dispatch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ENVIRONMENT: ${{ github.event.inputs.environment }}
-          REF: ${{ github.ref }}
-        run: |
-          if [ -z "$ENVIRONMENT" ]; then
-            ENVIRONMENT="staging"
-          fi
-          if [ "$ENVIRONMENT" = "production" ] && [[ "$REF" == refs/tags/v* ]]; then
-            echo "Production deploy only allowed on release tags. Skipping."
-          else
-            curl -L \
-              -X POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/terraform-plan-and-apply.yml/dispatches \
-              -d "{\"ref\":\"$REF\",\"inputs\":{\"environment\":\"$ENVIRONMENT\",\"apply\":\"true\"}}"
+
+  update-lambda:
+    name: Update lambda via Terraform
+    needs: build-deploy
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/terraform-plan-and-apply.yml
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      apply: "true"
+      ECR_IMAGE_TAG: ${{ needs.build-deploy.outputs.image_tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
+      TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
+      TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
+      TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
+      TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}

@@ -1,20 +1,6 @@
 # DA Caselaw Document Processing
 
-This repository contains AWS Lambda functions and supporting code for document processing in the DA Caselaw project.
-
-## DOCX Author Metadata Stripping Lambda
-
-**Purpose:**
-Removes author and related metadata from Microsoft Word DOCX files to ensure privacy compliance before publication.
-
-**Location:** `lambda_strip_docx/`
-
-**Key features:**
-
-- Accepts DOCX files as input (base64-encoded via API Gateway or S3 event).
-- Removes author metadata from document properties.
-- Preserves document content and formatting.
-- Handles errors and logs to CloudWatch.
+AWS Lambda function for document processing (privacy, metadata stripping, etc.).
 
 ## Deployment
 
@@ -107,422 +93,104 @@ pre-commit run --all-files
 
 ### Overview
 
-The Terraform configuration in the `terraform/` directory deploys the DOCX metadata stripping Lambda function with production-ready VPC networking, security groups, and IAM permissions.
+The Terraform configuration in the `terraform/` directory deploys the DOCX metadata stripping Lambda function with production-ready VPC networking, security groups, and IAM permissions. The Docker image tag for the Lambda is now passed as an explicit input variable (`ECR_IMAGE_TAG`) from the GitHub Actions workflow. There is **no longer any automated commit or update to tfvars files** for image tags. All deployments are explicit and auditable.
 
-### Architecture
+### How Image Tag Deployment Works
 
-The infrastructure creates:
+- The workflow triggers this Terraform deployment and supplies the image tag using `-var="ECR_IMAGE_TAG=..."`.
+- For production, the workflow enforces that only GitHub release tags (e.g., `refs/tags/v1.2.3`) are used as image tags.
+- Image tag must match a pushed image in ECR. The Lambda will use the image tag you provide.
 
-#### Security & Networking
+### Usage
 
-- **VPC Integration**: Lambda runs in the existing caselaw VPC using private subnets across all 3 availability zones
-- **Security Group**: Dedicated security group allowing only HTTPS egress to S3 via VPC endpoint (using prefix list)
-- **Network Isolation**: No internet access - Lambda can only communicate with S3 through VPC endpoints
+1. **Configure your variables** in `terraform.tfvars` (see example file for required values).
+2. **Run Terraform** via the CI/CD workflow, or manually:
 
-#### IAM & Permissions
+   ```sh
+   terraform plan -var="ECR_IMAGE_TAG=<your-image-tag>"
+   terraform apply -var="ECR_IMAGE_TAG=<your-image-tag>"
+   ```
 
-- **Dedicated IAM Role**: Lambda execution role with minimal required permissions:
-  - `s3:GetObject`, `s3:GetObjectTagging`, `s3:PutObject`, `s3:PutObjectTagging` on unpublished-assets bucket
-  - `ec2:CreateNetworkInterface`, `ec2:DescribeNetworkInterfaces`, `ec2:DeleteNetworkInterface` for VPC access
-  - `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents` for CloudWatch logging
-  - `kms:Decrypt`, `kms:GenerateDataKey` for KMS access to decrypt S3 objects
+3. **Image tag must match a pushed image in ECR**. The Lambda will use the image tag you provide.
 
-#### Lambda Configuration
+#### Inputs
 
-- **Runtime**: Python 3.13
-- **Memory**: 256 MB
-- **Timeout**: 30 seconds
-- **VPC**: Deployed to private subnets across all AZs
-- **Trigger**: Automatic S3 event notification for `.docx` files
+- `ECR_IMAGE_TAG`: Docker image tag to deploy (required)
+- `caselaw_vpc_id`: VPC ID for Lambda deployment
+- `unpublished_assets_bucket_name`: S3 bucket for unpublished assets
+- `unpublished_assets_kms_key_arn`: KMS key ARN for bucket encryption
+- `s3_prefix_list_id`: Prefix list ID for S3 VPC endpoint
 
-#### Monitoring & Logging
+#### Outputs
 
-- **CloudWatch Logs**: Dedicated log group with 30-day retention
-- **Comprehensive Outputs**: ARNs and IDs for validation and monitoring
+See `main.tf` for all outputs, including Lambda ARNs, security group IDs, subnet IDs, and VPC endpoint details.
 
-### Prerequisites
+#### Security & Compliance
 
-Before deploying this infrastructure, ensure you have:
+- Lambda runs in a private VPC with no internet access
+- All AWS service access via VPC endpoints
+- Minimal IAM permissions
+- KMS integration for encrypted S3 objects
 
-1. **Existing caselaw VPC** with:
-   - Private subnets tagged with `Tier = "private"` across 3 AZs
-   - S3 VPC endpoint configured
-   - S3 prefix list ID available
+#### Notes
 
-2. **Unpublished assets S3 bucket** with:
-   - Bucket name
-   - KMS key ARN used for encryption
+- Temporary VPC endpoints are included here for ECR and CloudWatch Logs; these should be migrated to main VPC infrastructure in future.
+- All deployments are now explicit and controlled via workflow inputs.
 
-3. **Terraform** >= 1.0 installed
-4. **AWS CLI** configured with appropriate permissions
+#### Reference
 
-### Terraform Deployment Steps
-
-Navigate to the terraform directory:
-
-```bash
-cd terraform
-```
-
-#### 1. Configure Variables
-
-Copy the example variables file and fill in your values:
-
-```bash
-cp terraform.tfvars.example terraform.tfvars
-```
-
-Edit `terraform.tfvars` with your actual values:
-
-```hcl
-caselaw_vpc_id                = "vpc-your-actual-vpc-id"
-unpublished_assets_bucket_name = "your-unpublished-assets-bucket"
-unpublished_assets_kms_key_arn = "arn:aws:kms:region:account:key/key-id"
-s3_prefix_list_id             = "pl-your-s3-prefix-list"
-```
-
-#### 2. Initialize and Plan
-
-```bash
-terraform init
-terraform plan
-```
-
-#### 3. Deploy
-
-```bash
-terraform apply
-```
-
-#### 4. Validate Deployment
-
-After successful deployment, verify:
-
-```bash
-# Check Lambda function status
-aws lambda get-function --function-name docx-cleanser-lambda
-
-# Check security group rules
-aws ec2 describe-security-groups --group-ids $(terraform output -raw lambda_security_group_id)
-
-# Check VPC configuration
-aws lambda get-function-configuration --function-name docx-cleanser-lambda --query 'VpcConfig'
-```
-
-### Infrastructure Testing
-
-#### End-to-End Test
-
-1. Upload a DOCX file to the unpublished assets bucket:
-
-```bash
-aws s3 cp sample.docx s3://your-unpublished-assets-bucket/test/sample.docx
-```
-
-2. Check CloudWatch logs:
-
-```bash
-aws logs tail /aws/lambda/docx-cleanser-lambda --follow
-```
-
-3. Verify the file was processed (check for `DOCUMENT_PROCESSOR_VERSION` tag):
-
-```bash
-aws s3api get-object-tagging --bucket your-unpublished-assets-bucket --key test/sample.docx
-```
-
-#### Network Connectivity Test
-
-To verify no internet access:
-
-1. Temporarily modify the Lambda to attempt an external HTTP request
-2. Deploy and test - it should fail with a timeout/connection error
-3. Revert the changes
-
-### Security Validation
-
-#### Verify Network Isolation
-
-- Lambda security group has no ingress rules
-- Lambda security group only allows HTTPS egress to S3 prefix list
-- No internet gateway access from private subnets
-
-#### Verify IAM Permissions
-
-- Lambda role has only the minimal required permissions
-- S3 access limited to the specific bucket
-- KMS access limited to the specific key
-
-#### Verify KMS Integration
-
-- Lambda can decrypt objects in the unpublished assets bucket
-- KMS key policy includes the Lambda execution role
-
-### Infrastructure Outputs
-
-The Terraform configuration provides these outputs for monitoring and validation:
-
-- `lambda_function_arn`: ARN of the deployed Lambda function
-- `lambda_function_name`: Name of the Lambda function
-- `lambda_execution_role_arn`: ARN of the IAM execution role
-- `lambda_security_group_id`: Security group ID
-- `lambda_log_group_name`: CloudWatch log group name
-- `private_subnets_used`: List of private subnet IDs
-- `vpc_id`: VPC ID where Lambda is deployed
-
-### Troubleshooting
-
-#### Common Issues
-
-1. **VPC Timeout Errors**: Check that S3 VPC endpoint is properly configured
-2. **Permission Errors**: Verify KMS key policy includes the Lambda role
-3. **Subnet Issues**: Ensure private subnets are properly tagged
-4. **Prefix List**: Verify the S3 prefix list ID is correct for your region
-
-#### Logs and Monitoring
-
-- CloudWatch Logs: `/aws/lambda/docx-cleanser-lambda`
-- CloudWatch Metrics: Check Lambda duration, errors, and invocations
-- VPC Flow Logs: Monitor network traffic (if enabled)
-
-### Infrastructure Maintenance
-
-#### Updates
-
-- Lambda code updates: Run `terraform apply` after code changes
-- Infrastructure changes: Modify Terraform and run plan/apply
-- Dependency updates: Update `requirements.txt` in lambda_strip_docx directory
-
-#### Monitoring
-
-- Set up CloudWatch alarms for Lambda errors and duration
-- Monitor S3 processing metrics
-- Review security group and IAM changes regularly
-
-### Compliance
-
-This configuration meets the specified security requirements:
-
-✅ Lambda deployed in caselaw VPC
-✅ Uses private subnets across all 3 AZs
-✅ Dedicated security group with S3-only access
-✅ No internet connectivity
-✅ Minimal IAM permissions
-✅ KMS integration for encrypted S3 objects
-✅ CloudWatch logging enabled
-✅ Infrastructure as Code deployment
-✅ Comprehensive resource tagging
-
-### VPC Endpoints Migration
-
-**Note**: The current Terraform configuration temporarily includes VPC endpoints (ECR API, ECR DKR, CloudWatch Logs) to enable secure, offline operation. These endpoints should eventually be moved to the main VPC infrastructure configuration for better organization and reusability.
-
-**Current Temporary VPC Endpoints**:
-
-- ECR API (`com.amazonaws.eu-west-2.ecr.api`) - Container image metadata
-- ECR DKR (`com.amazonaws.eu-west-2.ecr.dkr`) - Container image data
-- CloudWatch Logs (`com.amazonaws.eu-west-2.logs`) - Lambda logging
-
-**Migration Steps** (when ready):
-
-1. Create VPC endpoints in main VPC infrastructure configuration
-2. Update DOCX cleanser to use data sources referencing existing endpoints
-3. Remove temporary endpoint resources from Lambda configuration
-4. Deploy main VPC endpoints first, then update Lambda configuration
-
-This approach provides better separation of concerns and allows endpoint reuse across multiple Lambda functions.
-
-### Deployment Checklist
-
-#### Pre-Deployment Validation
-
-- [ ] AWS CLI configured and authenticated
-- [ ] Terraform variables configured correctly
-- [ ] VPC and subnet IDs verified
-- [ ] S3 bucket exists and is accessible
-- [ ] Required AWS permissions available
-
-#### Deployment Steps
-
-- [ ] Run `terraform init` successfully
-- [ ] Review `terraform plan` output
-- [ ] Apply Terraform configuration
-- [ ] Verify Lambda function created
-- [ ] Confirm VPC configuration applied
-- [ ] Test S3 trigger configuration
-
-#### Post-Deployment Testing
-
-- [ ] Run validation script (`terraform/validate-deployment.sh`)
-- [ ] Execute integration tests (`terraform/integration_tests.py`)
-- [ ] Test with sample DOCX file
-- [ ] Verify metadata removal
-- [ ] Check CloudWatch logs
-- [ ] Confirm network isolation
-
-### Performance & Monitoring
-
-#### Recommended CloudWatch Alarms
-
-- Error rate > 5%
-- Duration > 60 seconds
-- Memory utilization > 80%
-- Failed invocations
-
-#### Maintenance Schedule
-
-- **Monthly**: Review CloudWatch metrics and costs
-- **Quarterly**: Update Python dependencies
-- **Bi-annually**: Review and audit IAM permissions
-- **Annually**: Update to latest Lambda runtime
+See the main repository `README.md` for full documentation and deployment flow.
 
 ---
 
 ## CI/CD Deployment with GitHub Actions
 
-### Using Secrets for Terraform S3 Backend
-
-To securely set the S3 backend bucket for Terraform, add a secret (e.g., `STAGING_TF_BACKEND_BUCKET`) to your GitHub environment. Then use it in your workflow:
-
-```yaml
-- name: Terraform Init (Staging)
-  run: terraform init -backend-config="bucket=${{ secrets.STAGING_TF_BACKEND_BUCKET }}"
-  working-directory: terraform
-```
-
-This ensures the bucket name is not hardcoded and is securely managed like your other secrets.
-
 ### Overview
 
-For automated deployment using GitHub Actions, you'll need to securely manage Terraform variables. The recommended approach uses GitHub Environments with encrypted secrets.
+This repository uses GitHub Actions for CI/CD automation. The workflow builds and pushes Docker images, then triggers the Terraform deployment workflow by passing the Docker image tag as an input variable. This approach keeps infrastructure and application versioning separate and avoids automated commits to tfvars files.
 
-### Setup GitHub Actions Deployment
+### Application vs Infrastructure Versioning
 
-#### 1. Create GitHub Environments
+- **Application versioning**: Docker images are always tagged with the current GitHub reference (`GITHUB_REF`). For staging and branch builds, this is typically a branch or commit reference. For production releases, this must be a GitHub release tag (e.g., `refs/tags/v1.2.3`).
+- **Infrastructure versioning**: Managed via git commits/tags in the Terraform code.
 
-1. Go to your repository → **Settings** → **Environments**
-2. Create environments: `development`, `staging`, `production`
+You deploy a new application version by building and pushing a Docker image tagged with the current GitHub reference. The workflow then passes this tag as an input to the Terraform workflow. Infrastructure changes are deployed by updating and applying Terraform code.
 
-#### 2. Add Secrets to Each Environment
+### Staging and Production Deployments
 
-**AWS Credentials:**
+- **Staging**: Used for testing new app versions and infra changes. The workflow is triggered automatically or manually, and always uses the current GitHub reference as the Docker image tag.
+- **Production**: Used for live deployments. The workflow must be triggered manually, and the environment must be explicitly set to `production` in the workflow dispatch. For production, the workflow verifies that the GitHub reference is a release tag (`refs/tags/v*`). If the reference is not a release tag, the workflow will fail and not deploy to production.
 
-```
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=eu-west-2
-AWS_ACCOUNT_ID=123456789012
-```
+### Deployment Steps
 
-**Terraform Variables (with TF*VAR* prefix):**
+1. **Build and push Docker image**
+   - Automated by GitHub Actions (`.github/workflows/docker-build-and-deploy.yml`).
+   - The Docker image is tagged with the current GitHub reference (`GITHUB_REF`).
+2. **Trigger Terraform deployment workflow**
+   - The workflow passes `image_tag` (the current GitHub reference) as an input to the Terraform plan/apply workflow.
+   - For production: only allowed if the reference is a release tag (`refs/tags/v*`).
+3. **Terraform deployment**
+   - The Terraform workflow uses the provided image tag variable to deploy the specified version.
 
-```
-TF_VAR_environment=production
-TF_VAR_caselaw_vpc_id=vpc-xxxxxxxxx
-TF_VAR_unpublished_assets_bucket_name=da-prod-unpublished-assets
-TF_VAR_unpublished_assets_kms_key_arn=arn:aws:kms:eu-west-2:123456789012:key/xxxxx
-TF_VAR_s3_prefix_list_id=pl-xxxxxxxx
-```
+#### Example: Manual Production Deployment
 
-#### 3. GitHub Actions Workflow Example
+1. Manually trigger the workflow in GitHub Actions and select `production` as the environment.
+2. Ensure the GitHub reference is a release tag (e.g., `refs/tags/v1.2.3`).
+3. The workflow uses the release tag as the Docker image tag and deploys to production.
+4. Approve the deployment if required by environment protection rules.
 
-```yaml
-name: Deploy DOCX Cleanser Lambda
+#### Example: Automated Staging Deployment
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+1. Workflow is triggered automatically on PR merge to main, or manually with environment set to `staging`.
+2. The specified GitHub reference is used as the Docker image tag.
+3. Terraform deploys the new version to staging.
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment: production # Controls which secrets are loaded
+### Why This Approach?
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Init
-        run: terraform init -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}"
-        working-directory: terraform
-
-      - name: Terraform Plan
-        run: terraform plan
-        working-directory: terraform
-        env:
-          TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
-          TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
-          TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
-          TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: terraform
-        env:
-          TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
-          TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
-          TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
-          TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
-```
-
-#### 4. Get Required AWS Values
-
-```bash
-# Get VPC ID
-aws ec2 describe-vpcs --filters "Name=tag:Name,Values=*caselaw*" --query 'Vpcs[0].VpcId'
-
-# Get S3 prefix list
-aws ec2 describe-managed-prefix-lists --filters "Name=prefix-list-name,Values=com.amazonaws.vpce.eu-west-2.s3"
-
-# Get KMS key ARN (find the correct key for your S3 bucket)
-aws kms list-keys --query 'Keys[].KeyId'
-```
-
-### Security Best Practices for CI/CD
-
-#### Use Environment Protection Rules
-
-Configure environment protection rules in GitHub to require manual approval for production deployments.
-
-#### OIDC Authentication (Recommended)
-
-Instead of long-lived access keys, use OpenID Connect:
-
-```yaml
-- name: Configure AWS credentials
-  uses: aws-actions/configure-aws-credentials@v4
-  with:
-    role-to-assume: arn:aws:iam::123456789012:role/github-actions-role
-    role-session-name: GitHubActions
-    aws-region: eu-west-2
-```
-
-#### Required IAM Permissions
-
-GitHub Actions user needs permissions for:
-
-- `lambda:*` - Lambda function management
-- `ecr:*` - Container registry access
-- `iam:PassRole` - IAM role assignment
-- `ec2:Describe*` - VPC and network queries
-- `s3:*` - S3 bucket operations
-- `kms:Decrypt`, `kms:GenerateDataKey` - KMS operations
-
-### Alternative CI/CD Methods
-
-**Terraform Cloud**: For team environments, use Terraform Cloud with workspace variables
-**AWS Parameter Store**: Store variables in AWS Systems Manager for retrieval during deployment
-**Encrypted .tfvars**: Use Mozilla SOPS to encrypt variable files in the repository
+- No automated commits to tfvars files (all changes are explicit and auditable).
+- All production deployments require manual approval and must use a GitHub release tag as the image tag.
+- Maintains clear separation between application and infrastructure versioning.
+- Avoids complexity of GPG signing in CI/CD.
 
 ---
 

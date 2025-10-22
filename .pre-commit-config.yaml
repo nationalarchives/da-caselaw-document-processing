@@ -50,3 +50,11 @@ repos:
           - --hook-config=--parallelism-limit=1
           - --args=--severity=CRITICAL
           - --args=--ignorefile=__GIT_WORKING_DIR__/.trivyignore
+
+  - repo: local
+    hooks:
+      - id: safety-check
+        name: Safety Check
+        entry: custom_hooks/safety_check.sh
+        language: system
+        pass_filenames: false
