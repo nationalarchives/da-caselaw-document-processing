@@ -1,4 +1,10 @@
 name: Build, Deploy, and Trigger Terraform Apply
+env:
+  # Make these available to all jobs so the workflow is reusable across repos/environments.
+  # Allow overriding LAMBDA_FUNCTION_NAME in repository secrets; fallback to the known default name.
+  LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME || 'document-cleanser-lambda' }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
 on:
   push:
     branches:
@@ -6,9 +12,6 @@ on:
       - docker-build-and-deploy
     tags:
       - "v*"
-    paths:
-      - "lambda_strip_docx/**"
-      - ".github/workflows/docker-build-and-deploy.yml"
   workflow_dispatch:
     inputs:
       environment:
@@ -31,7 +34,33 @@ jobs:
       pull-requests: read
     outputs:
       image_tag: ${{ steps.set_env.outputs.image_tag }}
+      environment: ${{ steps.set_env.outputs.environment }}
     steps:
+      - name: Set environment variables
+        id: set_env
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          # By default, environment is staging unless explicitly set by user in workflow_dispatch.
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="staging"
+          fi
+
+          # For production, require a tag and use the tag name as IMAGE_TAG
+          if [ "$ENVIRONMENT" = "production" ]; then
+            if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+              echo "Error: Production deploys must use a GitHub release tag (refs/tags/v*) as the reference."
+              exit 1
+            fi
+            IMAGE_TAG="$GITHUB_REF_NAME"
+          else
+            IMAGE_TAG="$GITHUB_SHA"
+          fi
+
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
@@ -68,37 +97,11 @@ jobs:
           IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
         run: |
           ./wizcli iac scan --path lambda_strip_docx --name "$ECR_REPOSITORY-$IMAGE_TAG"
-
-      - name: Set environment variables
-        id: set_env
-        env:
-          ENVIRONMENT: ${{ github.event.inputs.environment }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: |
-          # By default, environment is staging unless explicitly set by user in workflow_dispatch.
-          if [ -z "$ENVIRONMENT" ]; then
-            ENVIRONMENT="staging"
-          fi
-
-          # For production, require a tag and use the tag name as IMAGE_TAG
-          if [ "$ENVIRONMENT" = "production" ]; then
-            if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
-              echo "Error: Production deploys must use a GitHub release tag (refs/tags/v*) as the reference."
-              exit 1
-            fi
-            IMAGE_TAG="$GITHUB_REF_NAME"
-          else
-            IMAGE_TAG="$GITHUB_SHA"
-          fi
-
-          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
       - name: Build and tag Docker image (with build cache)
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
-          context: lambda_strip_docx/
-          file: lambda_strip_docx/Dockerfile
+          context: ${{ secrets.DOCKER_CONTEXT || 'lambda_strip_docx/' }}
+          file: ${{ secrets.DOCKER_FILE || 'lambda_strip_docx/Dockerfile' }}
           push: false
           load: true
           tags: ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.set_env.outputs.image_tag }}
@@ -132,22 +135,13 @@ jobs:
           IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
         run: |
           ./wizcli docker tag --image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-  update-lambda:
-    name: Update lambda via Terraform
-    needs: build-deploy
-    permissions:
-      id-token: write
-      contents: read
-    uses: ./.github/workflows/terraform-plan-and-apply.yml
-    with:
-      environment: ${{ github.event.inputs.environment }}
-      apply: "true"
-      ECR_IMAGE_TAG: ${{ needs.build-deploy.outputs.image_tag }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      TF_VAR_caselaw_vpc_id: ${{ secrets.TF_VAR_caselaw_vpc_id }}
-      TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
-      TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
-      TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
-      TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+      - name: Update Lambda code
+        env:
+          LAMBDA_NAME: ${{ env.LAMBDA_FUNCTION_NAME }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          echo "Updating Lambda '${LAMBDA_NAME}' to image ${IMAGE_URI}"
+          aws lambda update-function-code --function-name "$LAMBDA_NAME" --image-uri "$IMAGE_URI"

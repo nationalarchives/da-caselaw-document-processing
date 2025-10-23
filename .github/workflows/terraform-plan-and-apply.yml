@@ -30,31 +30,6 @@ on:
     paths:
       - "terraform/**"
       - ".github/workflows/terraform-plan-and-apply.yml"
-  workflow_call:
-    inputs:
-      environment:
-        required: true
-        type: string
-      apply:
-        required: false
-        type: string
-        default: "false"
-      ECR_IMAGE_TAG:
-        required: true
-        type: string
-    secrets:
-      AWS_ROLE_ARN:
-        required: true
-      TF_BACKEND_BUCKET:
-        required: true
-      TF_VAR_caselaw_vpc_id:
-        required: true
-      TF_VAR_unpublished_assets_bucket_name:
-        required: true
-      TF_VAR_unpublished_assets_kms_key_arn:
-        required: true
-      TF_VAR_s3_prefix_list_id:
-        required: true
 
 env:
   AWS_REGION: eu-west-2
@@ -68,7 +43,7 @@ jobs:
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'staging' }}
+    environment: ${{ github.event.inputs.environment || 'staging' }}
     permissions:
       contents: read
       id-token: write
@@ -79,6 +54,8 @@ jobs:
       TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
       # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
       INPUT_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+      INPUT_APPLY: ${{ github.event.inputs.apply || 'false' }}
+      ECR_IMAGE_TAG: ${{ github.event.inputs.ECR_IMAGE_TAG }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -104,15 +81,11 @@ jobs:
         run: terraform validate -no-color
         working-directory: terraform
       - name: Terraform Plan
-        env:
-          ECR_IMAGE_TAG: ${{ github.event.inputs.ECR_IMAGE_TAG }}
         run: |
           terraform plan -input=false -var="ECR_IMAGE_TAG=$ECR_IMAGE_TAG"
         working-directory: terraform
       - name: Terraform Apply
-        if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && github.event.inputs.apply == 'true' && ((github.event.inputs.environment == 'staging' && github.ref == 'refs/heads/main') || (github.event.inputs.environment == 'production' && startsWith(github.ref, 'v'))) }}
-        env:
-          ECR_IMAGE_TAG: ${{ github.event.inputs.ECR_IMAGE_TAG }}
+        if: ${{ env.INPUT_APPLY == 'true' && (env.INPUT_ENVIRONMENT == 'staging' || (env.INPUT_ENVIRONMENT == 'production' && startsWith(github.ref_name, 'v'))) }}
         run: |
           terraform apply -auto-approve -var="ECR_IMAGE_TAG=$ECR_IMAGE_TAG"
         working-directory: terraform
