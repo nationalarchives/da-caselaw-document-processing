@@ -110,6 +110,14 @@ jobs:
         run: |
           terraform plan -input=false -var="ECR_IMAGE_TAG=$ECR_IMAGE_TAG"
         working-directory: terraform
+
+      - name: Echo Terraform apply condition
+        run: |
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Input environment: ${{ env.INPUT_ENVIRONMENT }}"
+          echo "GitHub ref name: ${{ github.ref_name }}"
+          echo "Apply condition: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && github.event.inputs.apply == 'true' && (env.INPUT_ENVIRONMENT == 'staging' || (env.INPUT_ENVIRONMENT == 'production' && startsWith(github.ref_name, 'v'))) }}"
       - name: Terraform Apply
         if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && github.event.inputs.apply == 'true' && (env.INPUT_ENVIRONMENT == 'staging' || (env.INPUT_ENVIRONMENT == 'production' && startsWith(github.ref_name, 'v'))) }}
         env:
