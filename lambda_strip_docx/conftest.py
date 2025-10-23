@@ -25,6 +25,12 @@ def input_pdf():
     return load_bytes(test_file("sample_pdf_with_author.pdf"))
 
 @pytest.fixture
+def input_jpeg():
+    """Load sample JPEG file as bytes"""
+    """https://commons.wikimedia.org/w/index.php?title=Category:Public_domain&from=S#/media/File:Schetsen_van_vogels.jpeg"""
+    return load_bytes(test_file("art.jpeg"))
+
+@pytest.fixture
 def input_multipage_pdf():
     """Load sample PDF file as bytes"""
     return load_bytes(test_file("multipage.pdf"))
