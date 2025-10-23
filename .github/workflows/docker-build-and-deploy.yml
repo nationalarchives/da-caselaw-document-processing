@@ -6,9 +6,6 @@ on:
       - docker-build-and-deploy
     tags:
       - "v*"
-    paths:
-      - "lambda_strip_docx/**"
-      - ".github/workflows/docker-build-and-deploy.yml"
   workflow_dispatch:
     inputs:
       environment:
