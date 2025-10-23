@@ -12,6 +12,7 @@ lxml = "6.0.2"
 rollbar = "^1.3.0"
 boto3 = "^1.40.52"
 pymupdf = "^1.26.5"
+Pillow = "^12.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.4.2"

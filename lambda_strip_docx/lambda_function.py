@@ -3,6 +3,7 @@ import boto3
 from urllib.parse import unquote_plus
 import clean_docx
 import clean_pdf
+import clean_jpeg
 from exceptions import VisuallyDifferentError
 
 __version__="0.1.0-dev"
@@ -60,6 +61,10 @@ def lambda_handler(event, context):
                 elif file_type == "pdf":
                     clean_module = clean_pdf
                     content_type= "application/pdf"
+                elif file_type == "jpeg":
+                    clean_module = clean_jpeg
+                    content_type = "image/jpeg"
+                    # TODO: test this
                 else:
                     logger.warning(f"Skipping unrecognised file: {object_key} {file_content[:5]!r}")
                     continue
