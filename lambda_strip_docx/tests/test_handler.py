@@ -1,14 +1,10 @@
-import os
 import urllib
-import pytest
-import boto3
 import logging
 from moto import mock_aws
-from zipfile import ZipFile
-import io
-import re
 from clean_docx import strip_docx_author_metadata_from_docx
 from lambda_function import lambda_handler, __version__
+from exceptions import VisuallyDifferentError
+from unittest.mock import patch
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
     """Create a mock S3 event structure"""
@@ -46,9 +42,11 @@ class TestLambdaHandler:
         assert processed_content != input_docx
         assert len(processed_content) > 0
 
-    def test_lambda_handler_processes_pdf_files_without_version_tag(self, s3_with_pdf_file, input_pdf):
+    def test_lambda_handler_processes_pdf_files_without_version_tag(self, s3_with_multipage_pdf_file, input_multipage_pdf):
+        # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
+        # which raise errors when we compare the images
         """Test lambda handler processes files without a version tag"""
-        s3_client, bucket_name, object_key = s3_with_pdf_file
+        s3_client, bucket_name, object_key = s3_with_multipage_pdf_file
 
         # Create S3 event
         event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
@@ -59,8 +57,28 @@ class TestLambdaHandler:
         # Get the processed file and verify it's different from original
         processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         processed_content = processed_response['Body'].read()
-        assert processed_content != input_pdf
+        assert processed_content != input_multipage_pdf
         assert len(processed_content) > 0
+
+    @patch("exceptions.VisuallyDifferentError")
+    def test_lambda_handler_does_not_overwrite_visually_different_pdf_files(self, vis_diff_error, s3_with_pdf_file, input_pdf, caplog):
+        """The default PDF file contains annotations which cause a visual difference when removed.
+        Ensure that, at least for now, it does not cause the PDF to be saved with that difference"""
+        s3_client, bucket_name, object_key = s3_with_pdf_file
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler: note the VisuallyDifferentError is caught and silenced.
+        with caplog.at_level(logging.INFO):
+            lambda_handler(event, {})
+
+        # Get the processed file and verify it's same as original
+        processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        processed_content = processed_response['Body'].read()
+        assert processed_content == input_pdf
+        assert "exceptions.VisuallyDifferentError: S3 key sample_pdf_with_author.pdf was visually different after cleaning." in caplog.text
+
 
 
 

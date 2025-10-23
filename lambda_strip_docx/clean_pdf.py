@@ -1,7 +1,7 @@
 import subprocess
 from subprocess import STDOUT, PIPE
-from tempfile import NamedTemporaryFile
 from utils import file_wrapper
+from render_pdf import visually_identical
 
 def _qdf(filename: str) -> None:
     """Convert a PDF file into QDF format (which is still a valid PDF) since QDF files are
@@ -9,7 +9,7 @@ def _qdf(filename: str) -> None:
     subprocess.run(["qpdf", "--qdf", "--object-streams=disable", "--replace-input", filename], timeout=10, check=True)
 
 def _remove_annotations(filename: str) -> None:
-    subprocess.run(["pdfcpu", "annot", "remove", filename], timeout=10, check=True)
+    output = subprocess.run(["pdfcpu", "annot", "remove", filename], timeout=10, stdout=PIPE, stderr=STDOUT)
 
 def _remove_properties(filename: str) -> None:
     # Removing all the properties [nothing specified] does not appear to remove the predefined ones, like Author.
@@ -46,6 +46,9 @@ def _clean_pdf(filename: str) -> None:
 
 def clean(file_content):
     return file_wrapper(file_content=file_content, fn=_clean_pdf)
+
+def compare(file_content_a, file_content_b):
+    return visually_identical(file_content_a, file_content_b)
 
 def qdf(file_content):
     return file_wrapper(file_content=file_content, fn=_qdf)

@@ -65,3 +65,7 @@ def clean(file_content):
     except BadZipFile:
         logger.error(f"File is not a valid DOCX (zip) file.")
         raise
+
+def compare(file_content_a, file_content_b) -> bool|None:
+    """Placeholder"""
+    return None
