@@ -1,17 +1,24 @@
 import subprocess
 from subprocess import STDOUT, PIPE
 from utils import file_wrapper, image_compare
-from PIL import Image, ImageChops
+from exceptions import CleansingError
 import io
 
 def _clean_jpeg(filename: str) -> None:
+    # Preserve the ICC profile as that can change image colours
     output = subprocess.run(
-        ["exiftool", "-all:all=", filename],
+        ["exiftool", "-all:all=", "--icc_profile:all", filename],
         stdout=PIPE,
         stderr=STDOUT,
         timeout=10,
+        check=True
     )
-    print (output.stdout)
+
+    output_string = output.stdout.decode('utf-8')
+    if "ICC_Profile deleted" in output_string:
+        raise CleansingError("ICC_Profile deleted")
+    if "Warning:" in output_string:
+        raise CleansingError(f"Unexpected exiftool warning {output_string}")
 
 def _info(filename:str) -> bytes:
     return subprocess.run(["exiftool", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
