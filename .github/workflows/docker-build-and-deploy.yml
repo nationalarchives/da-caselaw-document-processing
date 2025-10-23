@@ -94,17 +94,20 @@ jobs:
 
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-      - name: Build and tag Docker image
+      - name: Build and tag Docker image (with build cache)
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: lambda_strip_docx/
+          file: lambda_strip_docx/Dockerfile
+          push: false
+          load: true
+          tags: ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.set_env.outputs.image_tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
-        run: |
-          if [ -z "$ECR_REGISTRY" ] || [ -z "$ECR_REPOSITORY" ]; then
-            echo "ECR_REGISTRY or ECR_REPOSITORY is not set. Aborting build."
-            exit 1
-          fi
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG lambda_strip_docx/
 
       - name: Wiz Docker Scan
         env:
