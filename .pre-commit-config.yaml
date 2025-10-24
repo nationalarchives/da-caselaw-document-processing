@@ -51,10 +51,7 @@ repos:
           - --args=--severity=CRITICAL
           - --args=--ignorefile=__GIT_WORKING_DIR__/.trivyignore
 
-  - repo: local
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.4.2
     hooks:
-      - id: safety-check
-        name: Safety Check
-        entry: custom_hooks/safety_check.sh
-        language: system
-        pass_filenames: false
+      - id: python-safety-dependencies-check
