@@ -77,8 +77,6 @@ Thumbs.db
 *.tfstate
 *.tfstate.*
 *.tfvars
-!terraform/image.production.auto.tfvars
-!terraform/image.staging.auto.tfvars
 *.tfvars.json
 .terraform/
 .terraform.lock.hcl
