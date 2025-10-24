@@ -31,6 +31,12 @@ def input_jpeg():
     return load_bytes(test_file("art.jpeg"))
 
 @pytest.fixture
+def input_png():
+    """Load sample PNG file as bytes"""
+    return load_bytes(test_file("crest.png"))
+
+
+@pytest.fixture
 def input_multipage_pdf():
     """Load sample PDF file as bytes"""
     return load_bytes(test_file("multipage.pdf"))
@@ -49,6 +55,41 @@ def s3_setup(s3_bucket_name):
         s3_client.create_bucket(Bucket=s3_bucket_name)
         yield s3_client, s3_bucket_name
 
+
+
+@pytest.fixture
+def s3_with_png_file(s3_setup, input_png):
+    """S3 environment with a PNG file uploaded"""
+    s3_client, bucket_name = s3_setup
+    object_key = "crest.png"
+
+    # Upload the DOCX file to S3
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=input_png,
+        # ContentType='image/png'
+    )
+
+    return s3_client, bucket_name, object_key
+
+@pytest.fixture
+def s3_with_jpeg_file(s3_setup, input_jpeg):
+    """S3 environment with a PNG file uploaded"""
+    s3_client, bucket_name = s3_setup
+    object_key = "art.jpeg"
+
+    # Upload the DOCX file to S3
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=input_jpeg,
+        # ContentType='image/jpeg'
+    )
+
+    return s3_client, bucket_name, object_key
+
+
 @pytest.fixture
 def s3_with_docx_file(s3_setup, input_docx):
     """S3 environment with a DOCX file uploaded"""
@@ -60,7 +101,7 @@ def s3_with_docx_file(s3_setup, input_docx):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_docx,
-        ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        # ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     )
 
     return s3_client, bucket_name, object_key
@@ -76,7 +117,7 @@ def s3_with_multipage_pdf_file(s3_setup, input_multipage_pdf):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_multipage_pdf,
-        ContentType='application/pdf'
+        # ContentType='application/pdf'
     )
 
     return s3_client, bucket_name, object_key

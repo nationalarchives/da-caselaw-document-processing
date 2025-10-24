@@ -42,6 +42,42 @@ class TestLambdaHandler:
         assert processed_content != input_docx
         assert len(processed_content) > 0
 
+    def test_lambda_handler_processes_jpeg_files(self, s3_with_jpeg_file, input_jpeg):
+        # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
+        # which raise errors when we compare the images
+        """Test lambda handler processes files without a version tag"""
+        s3_client, bucket_name, object_key = s3_with_jpeg_file
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Get the processed file and verify it's different from original
+        processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        processed_content = processed_response['Body'].read()
+        assert processed_content != input_jpeg
+        assert len(processed_content) > 0
+
+    def test_lambda_handler_processes_png_files(self, s3_with_png_file, input_png):
+        # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
+        # which raise errors when we compare the images
+        """Test lambda handler processes files without a version tag"""
+        s3_client, bucket_name, object_key = s3_with_png_file
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Get the processed file and verify it's different from original
+        processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        processed_content = processed_response['Body'].read()
+        assert processed_content != input_png
+        assert len(processed_content) > 0
+
     def test_lambda_handler_processes_pdf_files_without_version_tag(self, s3_with_multipage_pdf_file, input_multipage_pdf):
         # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
         # which raise errors when we compare the images
