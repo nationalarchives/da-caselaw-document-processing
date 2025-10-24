@@ -3,7 +3,17 @@ import boto3
 from urllib.parse import unquote_plus
 import clean_docx
 import clean_pdf
+import clean_jpeg
+import clean_png
 from exceptions import VisuallyDifferentError
+import utils
+
+MODULE_FOR_MIME_TYPE = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": clean_docx,
+    "image/png": clean_png,
+    "image/jpeg": clean_jpeg,
+    "application/pdf": clean_pdf,
+}
 
 __version__="0.1.0-dev"
 
@@ -53,15 +63,11 @@ def lambda_handler(event, context):
                 # extensions are less reliable
 
                 file_type = extension
-
-                if file_type == "docx":
-                    clean_module = clean_docx
-                    content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                elif file_type == "pdf":
-                    clean_module = clean_pdf
-                    content_type= "application/pdf"
-                else:
-                    logger.warning(f"Skipping unrecognised file: {object_key} {file_content[:5]!r}")
+                # TODO
+                content_type = utils.mimetype(file_content)
+                clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
+                if not clean_module:
+                    logger.warning(f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}")
                     continue
 
                 output_bytes = clean_module.clean(file_content)

@@ -45,16 +45,16 @@ def _clean_pdf(filename: str) -> None:
 # using the functions above
 
 def clean(file_content):
-    return file_wrapper(file_content=file_content, fn=_clean_pdf)
+    return file_wrapper(file_content=file_content, fn=_clean_pdf, extension="pdf")
 
 def compare(file_content_a, file_content_b):
     return visually_identical(file_content_a, file_content_b)
 
 def qdf(file_content):
-    return file_wrapper(file_content=file_content, fn=_qdf)
+    return file_wrapper(file_content=file_content, fn=_qdf, extension="pdf")
 
 def verify_removal(file_content):
-    return file_wrapper(file_content=file_content, fn=_verify_removal)
+    return file_wrapper(file_content=file_content, fn=_verify_removal, extension="pdf")
 
 def info(file_content):
-    return file_wrapper(file_content=file_content, fn=_info)
+    return file_wrapper(file_content=file_content, fn=_info, extension="pdf")
