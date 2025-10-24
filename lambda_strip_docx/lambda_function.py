@@ -4,7 +4,10 @@ from urllib.parse import unquote_plus
 import clean_docx
 import clean_pdf
 import clean_jpeg
+import clean_png
 from exceptions import VisuallyDifferentError
+import utils
+
 
 __version__="0.1.0-dev"
 
