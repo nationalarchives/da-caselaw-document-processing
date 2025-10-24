@@ -38,6 +38,7 @@ repos:
     rev: v1.15.2
     hooks:
       - id: zizmor
+        args: [--fix, --min-severity=low]
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.103.0
@@ -49,3 +50,11 @@ repos:
           - --hook-config=--parallelism-limit=1
           - --args=--severity=CRITICAL
           - --args=--ignorefile=__GIT_WORKING_DIR__/.trivyignore
+
+  - repo: local
+    hooks:
+      - id: safety-check
+        name: Safety Check
+        entry: custom_hooks/safety_check.sh
+        language: system
+        pass_filenames: false
