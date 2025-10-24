@@ -1,10 +1,6 @@
 name: Build, Deploy, and Trigger Terraform Apply
 env:
-  # Make these available to all jobs so the workflow is reusable across repos/environments.
-  # Allow overriding LAMBDA_FUNCTION_NAME in repository secrets; fallback to the known default name.
   LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME || 'document-cleanser-lambda' }}
-  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
 on:
   push:
     branches:
@@ -60,7 +56,7 @@ jobs:
           fi
 
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image_tag=latest" >> $GITHUB_OUTPUT
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
@@ -97,6 +93,7 @@ jobs:
           IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
         run: |
           ./wizcli iac scan --path lambda_strip_docx --name "$ECR_REPOSITORY-$IMAGE_TAG"
+
       - name: Build and tag Docker image (with build cache)
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
@@ -135,6 +132,7 @@ jobs:
           IMAGE_TAG: ${{ steps.set_env.outputs.image_tag }}
         run: |
           ./wizcli docker tag --image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
       - name: Update Lambda code
         env:
           LAMBDA_NAME: ${{ env.LAMBDA_FUNCTION_NAME }}
