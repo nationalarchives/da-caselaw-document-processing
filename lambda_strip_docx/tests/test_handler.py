@@ -5,6 +5,7 @@ from clean_docx import strip_docx_author_metadata_from_docx
 from lambda_function import lambda_handler, __version__
 from exceptions import VisuallyDifferentError
 from unittest.mock import patch
+import re
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
     """Create a mock S3 event structure"""
@@ -146,7 +147,7 @@ class TestLambdaHandler:
 
         # Verify expected log messages
         assert "Processing file: test.txt from bucket: test-bucket" in caplog.text
-        assert "Skipping unrecognised file: test.txt b'text '" in caplog.text
+        assert "Skipping unrecognised unknown file: test.txt b'text '" in caplog.text
 
     def test_lambda_handler_handles_missing_file(self, s3_setup):
         """Test lambda handler handles missing S3 files gracefully"""
@@ -163,8 +164,10 @@ class TestLambdaHandler:
         contents = response.get('Contents', [])
         assert len(contents) == 0, "No files should be created when source file is missing"
 
-    def test_lambda_handler_handles_corrupted_docx_files(self, s3_with_corrupted_file, caplog):
+    @patch("filetype.guess")
+    def test_lambda_handler_handles_corrupted_docx_files(self, filetype_guess, s3_with_corrupted_file, caplog):
         """Test lambda handler handles corrupted DOCX files"""
+        filetype_guess.return_value.mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         s3_client, bucket_name, object_key = s3_with_corrupted_file
 
         # Get original content before processing

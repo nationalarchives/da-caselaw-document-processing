@@ -1,6 +1,7 @@
 from tempfile import NamedTemporaryFile
 from PIL import Image, ImageChops
 import io
+import filetype
 
 def file_wrapper(file_content, fn, extension) -> bytes:
     """Since the PDF utilities require filenames and not bytestrings, write the bytestring to a file,
@@ -22,3 +23,9 @@ def image_compare(file_content_a, file_content_b):
     image_b = Image.open(io.BytesIO(file_content_b)).convert("RGB")
     diff = ImageChops.difference(image_a, image_b)
     return not diff.getbbox()
+
+def mimetype(document_bytes) -> str:
+    kind = filetype.guess(document_bytes)
+    if not kind or not kind.mime:
+        return ""
+    return kind.mime
