@@ -68,7 +68,7 @@ def s3_with_png_file(s3_setup, input_png):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_png,
-        # ContentType='image/png'
+        ContentType='image/png'
     )
 
     return s3_client, bucket_name, object_key
@@ -84,7 +84,7 @@ def s3_with_jpeg_file(s3_setup, input_jpeg):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_jpeg,
-        # ContentType='image/jpeg'
+        ContentType='image/jpeg'
     )
 
     return s3_client, bucket_name, object_key
@@ -101,7 +101,7 @@ def s3_with_docx_file(s3_setup, input_docx):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_docx,
-        # ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     )
 
     return s3_client, bucket_name, object_key
@@ -117,7 +117,7 @@ def s3_with_multipage_pdf_file(s3_setup, input_multipage_pdf):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_multipage_pdf,
-        # ContentType='application/pdf'
+        ContentType='application/pdf'
     )
 
     return s3_client, bucket_name, object_key

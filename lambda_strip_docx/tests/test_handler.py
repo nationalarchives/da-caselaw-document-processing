@@ -44,8 +44,6 @@ class TestLambdaHandler:
         assert len(processed_content) > 0
 
     def test_lambda_handler_processes_jpeg_files(self, s3_with_jpeg_file, input_jpeg):
-        # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
-        # which raise errors when we compare the images
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_jpeg_file
 
@@ -62,8 +60,6 @@ class TestLambdaHandler:
         assert len(processed_content) > 0
 
     def test_lambda_handler_processes_png_files(self, s3_with_png_file, input_png):
-        # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
-        # which raise errors when we compare the images
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_png_file
 
