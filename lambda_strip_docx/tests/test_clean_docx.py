@@ -1,6 +1,6 @@
 import io
 import re
-from zipfile import ZipFile
+from zipfile import ZipFile, BadZipFile
 
 import pytest
 
@@ -117,7 +117,7 @@ class TestStripDocxAuthorMetadata:
 
     def test_strip_docx_author_rejects_non_docx(self):
         """Test that non-DOCX files raise appropriate exceptions"""
-        with pytest.raises(Exception):
+        with pytest.raises(BadZipFile):
             strip_docx_author_metadata_from_docx(b"not a docx file")
 
     def test_assertion_function_detects_violations(self, input_docx):
