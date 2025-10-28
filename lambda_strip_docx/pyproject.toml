@@ -52,4 +52,5 @@ unfixable = ["ERA"]
 # FURB: not yet out of preview
 
 [tool.ruff.lint.extend-per-file-ignores]
-"**/tests/*" = ["S101"]
+"**/tests/*" = ["S101"] # tests allowed assert
+"clean_*.py" = ["S603"] # subprocess untrusted input false alarms
