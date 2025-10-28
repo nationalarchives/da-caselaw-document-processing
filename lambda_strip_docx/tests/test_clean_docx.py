@@ -1,7 +1,9 @@
-import pytest
-from zipfile import ZipFile
 import io
 import re
+from zipfile import ZipFile
+
+import pytest
+
 from clean_docx import strip_docx_author_metadata_from_docx
 
 
@@ -12,8 +14,8 @@ def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
             {
                 "eventID": "test-event-id",
                 "s3": {"bucket": {"name": bucket_name}, "object": {"key": object_key}},
-            }
-        ]
+            },
+        ],
     }
 
 
@@ -39,9 +41,7 @@ def assert_docx_metadata_is_stripped(docx_bytes):
                     f"<{tag}\\s*/>",  # Self-closing with whitespace
                 ]
 
-                tag_found = any(
-                    re.search(pattern, core_xml) for pattern in empty_patterns
-                )
+                tag_found = any(re.search(pattern, core_xml) for pattern in empty_patterns)
                 assert tag_found, (
                     f"Tag '{tag}' should be empty in core metadata, but found: {re.findall(f'<{re.escape(tag)}[^>]*>.*?</{re.escape(tag)}>', core_xml)}"
                 )
@@ -58,16 +58,12 @@ def assert_docx_metadata_is_stripped(docx_bytes):
 
                 # All attribute values should be empty strings
                 for value in attr_values:
-                    assert value == "", (
-                        f"Attribute '{attr}' should be empty but found value: '{value}'"
-                    )
+                    assert value == "", f"Attribute '{attr}' should be empty but found value: '{value}'"
 
                 # Also check that we don't have any non-empty attribute values
                 non_empty_pattern = f'{re.escape(attr)}="[^"]+[^"]"'
                 non_empty_matches = re.findall(non_empty_pattern, doc_xml)
-                assert len(non_empty_matches) == 0, (
-                    f"Found non-empty {attr} attributes: {non_empty_matches}"
-                )
+                assert len(non_empty_matches) == 0, f"Found non-empty {attr} attributes: {non_empty_matches}"
 
         # Check comments file - author attributes should be empty but comment text preserved
         if "word/comments.xml" in archive.namelist():
@@ -80,14 +76,10 @@ def assert_docx_metadata_is_stripped(docx_bytes):
                     attr_values = re.findall(attr_pattern, comments_xml)
 
                     for value in attr_values:
-                        assert value == "", (
-                            f"Comment attribute '{attr}' should be empty but found value: '{value}'"
-                        )
+                        assert value == "", f"Comment attribute '{attr}' should be empty but found value: '{value}'"
 
                 # Verify that comment text content is preserved (comments should still have meaningful text)
-                assert "<w:t>" in comments_xml, (
-                    "Comment text content should be preserved"
-                )
+                assert "<w:t>" in comments_xml, "Comment text content should be preserved"
 
         # Verify that the document still contains the actual text content
         # (to ensure we're not over-redacting and removing legitimate content)
@@ -98,9 +90,7 @@ def assert_docx_metadata_is_stripped(docx_bytes):
             # Should contain some meaningful text (not just empty tags)
             text_content = re.findall(r"<w:t>([^<]*)</w:t>", doc_xml)
             meaningful_text = [t.strip() for t in text_content if t.strip()]
-            assert len(meaningful_text) > 0, (
-                "Document should contain meaningful text content"
-            )
+            assert len(meaningful_text) > 0, "Document should contain meaningful text content"
 
 
 class TestStripDocxAuthorMetadata:
@@ -114,9 +104,7 @@ class TestStripDocxAuthorMetadata:
 
         # Basic sanity checks
         assert len(output_bytes) > 0, "Output should not be empty"
-        assert output_bytes != input_docx, (
-            "Output should be different from input after processing"
-        )
+        assert output_bytes != input_docx, "Output should be different from input after processing"
 
         # Verify it's still a valid DOCX file structure
         with ZipFile(io.BytesIO(output_bytes), "r") as archive:
@@ -142,10 +130,9 @@ class TestStripDocxAuthorMetadata:
 
         # Verify the assertion error contains meaningful information about what was found
         error_message = str(exc_info.value)
-        assert (
-            "should not be present" in error_message
-            or "should be empty" in error_message
-        ), f"Assertion error should indicate metadata violation, got: {error_message}"
+        assert "should not be present" in error_message or "should be empty" in error_message, (
+            f"Assertion error should indicate metadata violation, got: {error_message}"
+        )
 
 
 class TestAssertDocxMetadataIsStripped:
@@ -210,9 +197,7 @@ class TestAssertDocxMetadataIsStripped:
         docx_buffer.seek(0)
         return docx_buffer.getvalue()
 
-    def create_mock_docx_with_document_author_attributes(
-        self, author="Jane Smith", initials="JS"
-    ):
+    def create_mock_docx_with_document_author_attributes(self, author="Jane Smith", initials="JS"):
         """Create a minimal DOCX with author attributes in document.xml"""
         docx_buffer = io.BytesIO()
         with ZipFile(docx_buffer, "w") as zf:
@@ -231,7 +216,7 @@ class TestAssertDocxMetadataIsStripped:
             # Main document with author attributes
             zf.writestr(
                 "word/document.xml",
-                f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
             xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
     <w:body>
@@ -253,7 +238,7 @@ class TestAssertDocxMetadataIsStripped:
             </w:ins>
         </w:p>
     </w:body>
-</w:document>''',
+</w:document>""",
             )
 
             # Empty core properties
@@ -323,7 +308,7 @@ class TestAssertDocxMetadataIsStripped:
             # Comments with author information
             zf.writestr(
                 "word/comments.xml",
-                f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
     <w:comment w:id="0" w:author="{author}" w:initials="{initials}" w:date="2024-01-01T10:00:00Z">
         <w:p>
@@ -332,7 +317,7 @@ class TestAssertDocxMetadataIsStripped:
             </w:r>
         </w:p>
     </w:comment>
-</w:comments>''',
+</w:comments>""",
             )
 
             # Empty core properties
@@ -467,17 +452,13 @@ class TestAssertDocxMetadataIsStripped:
 
     def test_detects_w15_author_attribute_in_document(self):
         """Test that assertion detects non-empty w15:author attributes in document"""
-        docx_bytes = self.create_mock_docx_with_document_author_attributes(
-            "Carol Davis"
-        )
+        docx_bytes = self.create_mock_docx_with_document_author_attributes("Carol Davis")
 
         with pytest.raises(AssertionError) as exc_info:
             assert_docx_metadata_is_stripped(docx_bytes)
 
         error_message = str(exc_info.value)
-        assert (
-            "w15:author" in error_message or "w:author" in error_message
-        )  # Either could trigger first
+        assert "w15:author" in error_message or "w:author" in error_message  # Either could trigger first
         assert "should be empty" in error_message
 
     def test_detects_author_attributes_in_comments(self):

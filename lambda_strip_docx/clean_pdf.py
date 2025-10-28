@@ -1,7 +1,8 @@
 import subprocess
-from subprocess import STDOUT, PIPE
-from utils import file_wrapper
+from subprocess import PIPE, STDOUT
+
 from render_pdf import visually_identical
+from utils import file_wrapper
 
 
 def _qdf(filename: str) -> None:
@@ -15,9 +16,7 @@ def _qdf(filename: str) -> None:
 
 
 def _remove_annotations(filename: str) -> None:
-    subprocess.run(
-        ["pdfcpu", "annot", "remove", filename], timeout=10, stdout=PIPE, stderr=STDOUT
-    )
+    subprocess.run(["pdfcpu", "annot", "remove", filename], check=False, timeout=10, stdout=PIPE, stderr=STDOUT)
 
 
 def _remove_properties(filename: str) -> None:
@@ -36,16 +35,14 @@ def _remove_properties(filename: str) -> None:
 
 
 def _info(filename: str) -> bytes:
-    return subprocess.run(
-        ["pdfcpu", "info", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT
-    ).stdout
+    return subprocess.run(["pdfcpu", "info", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
 
 
 def _verify_removal(filename: str) -> bool:
     """Verify that exiftool cannot restore an author name"""
     output = subprocess.run(
         ["exiftool", "-pdf-update:all=", filename],
-        stdout=PIPE,
+        check=False, stdout=PIPE,
         stderr=STDOUT,
         timeout=10,
     )

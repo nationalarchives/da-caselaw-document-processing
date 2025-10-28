@@ -1,12 +1,14 @@
 import logging
-import boto3
 from urllib.parse import unquote_plus
+
+import boto3
+
 import clean_docx
-import clean_pdf
 import clean_jpeg
+import clean_pdf
 import clean_png
-from exceptions import VisuallyDifferentError
 import utils
+from exceptions import VisuallyDifferentError
 
 MODULE_FOR_MIME_TYPE = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": clean_docx,
@@ -38,12 +40,8 @@ def lambda_handler(event, context):
                 logger.info(f"Processing file: {object_key} from bucket: {bucket_name}")
 
                 # Check if the file has already been processed
-                tags_response = s3.get_object_tagging(
-                    Bucket=bucket_name, Key=object_key
-                )
-                tags = {
-                    tag["Key"]: tag["Value"] for tag in tags_response.get("TagSet", [])
-                }
+                tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
+                tags = {tag["Key"]: tag["Value"] for tag in tags_response.get("TagSet", [])}
 
                 if "DOCUMENT_PROCESSOR_VERSION" in tags:
                     existing_version = tags["DOCUMENT_PROCESSOR_VERSION"]
@@ -53,15 +51,14 @@ def lambda_handler(event, context):
 
                         if current_major_version == existing_major_version:
                             logger.info(
-                                f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping."
+                                f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.",
                             )
                             continue
                     except (IndexError, AttributeError):
                         # If version parsing fails, proceed with processing to be safe
                         logger.warning(
-                            f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing."
+                            f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.",
                         )
-                        pass
 
                 # Read the file from S3
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)
@@ -71,15 +68,13 @@ def lambda_handler(event, context):
                 clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
                 if not clean_module:
                     logger.warning(
-                        f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}"
+                        f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
                     )
                     continue
 
                 output_bytes = clean_module.clean(file_content)
                 if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
-                    raise VisuallyDifferentError(
-                        f"S3 key {object_key} was visually different after cleaning."
-                    )
+                    raise VisuallyDifferentError(f"S3 key {object_key} was visually different after cleaning.")
 
                 # Write the processed file back to S3
                 s3.put_object(
@@ -90,9 +85,7 @@ def lambda_handler(event, context):
                     Tagging=f"DOCUMENT_PROCESSOR_VERSION={document_processor_version}",
                 )
 
-                logger.info(
-                    f"Successfully processed and rewrote {content_type}: {object_key}"
-                )
+                logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
 
             except Exception as e:
                 logger.error(f"Failed to process file {object_key}: {e}", exc_info=True)

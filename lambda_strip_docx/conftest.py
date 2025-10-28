@@ -1,6 +1,7 @@
 import os
-import pytest
+
 import boto3
+import pytest
 from moto import mock_aws
 
 
@@ -70,9 +71,7 @@ def s3_with_png_file(s3_setup, input_png):
     object_key = "crest.png"
 
     # Upload the DOCX file to S3
-    s3_client.put_object(
-        Bucket=bucket_name, Key=object_key, Body=input_png, ContentType="image/png"
-    )
+    s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=input_png, ContentType="image/png")
 
     return s3_client, bucket_name, object_key
 
@@ -84,9 +83,7 @@ def s3_with_jpeg_file(s3_setup, input_jpeg):
     object_key = "art.jpeg"
 
     # Upload the DOCX file to S3
-    s3_client.put_object(
-        Bucket=bucket_name, Key=object_key, Body=input_jpeg, ContentType="image/jpeg"
-    )
+    s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=input_jpeg, ContentType="image/jpeg")
 
     return s3_client, bucket_name, object_key
 

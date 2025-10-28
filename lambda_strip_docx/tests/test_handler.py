@@ -1,8 +1,9 @@
-import urllib
 import logging
-from clean_docx import strip_docx_author_metadata_from_docx
-from lambda_function import lambda_handler, __version__
+import urllib
 from unittest.mock import patch
+
+from clean_docx import strip_docx_author_metadata_from_docx
+from lambda_function import __version__, lambda_handler
 
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
@@ -12,17 +13,15 @@ def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
             {
                 "eventID": "test-event-id",
                 "s3": {"bucket": {"name": bucket_name}, "object": {"key": object_key}},
-            }
-        ]
+            },
+        ],
     }
 
 
 class TestLambdaHandler:
     """Tests for the lambda_handler function"""
 
-    def test_lambda_handler_processes_docx_files_without_version_tag(
-        self, s3_with_docx_file, input_docx
-    ):
+    def test_lambda_handler_processes_docx_files_without_version_tag(self, s3_with_docx_file, input_docx):
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_docx_file
 
@@ -71,7 +70,7 @@ class TestLambdaHandler:
         assert len(processed_content) > 0
 
     def test_lambda_handler_processes_pdf_files_without_version_tag(
-        self, s3_with_multipage_pdf_file, input_multipage_pdf
+        self, s3_with_multipage_pdf_file, input_multipage_pdf,
     ):
         # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
         # which raise errors when we compare the images
@@ -92,7 +91,7 @@ class TestLambdaHandler:
 
     @patch("exceptions.VisuallyDifferentError")
     def test_lambda_handler_does_not_overwrite_visually_different_pdf_files(
-        self, vis_diff_error, s3_with_pdf_file, input_pdf, caplog
+        self, vis_diff_error, s3_with_pdf_file, input_pdf, caplog,
     ):
         """The default PDF file contains annotations which cause a visual difference when removed.
         Ensure that, at least for now, it does not cause the PDF to be saved with that difference"""
@@ -121,9 +120,7 @@ class TestLambdaHandler:
 
         # Upload a non-DOCX file
         non_docx_key = "test.txt"
-        s3_client.put_object(
-            Bucket=bucket_name, Key=non_docx_key, Body=original_content
-        )
+        s3_client.put_object(Bucket=bucket_name, Key=non_docx_key, Body=original_content)
 
         # Create S3 event for the non-DOCX file
         event = create_s3_event(bucket_name=bucket_name, object_key=non_docx_key)
@@ -138,9 +135,7 @@ class TestLambdaHandler:
         assert current_content == original_content
 
         # Verify no version tag was added
-        tag_response = s3_client.get_object_tagging(
-            Bucket=bucket_name, Key=non_docx_key
-        )
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=non_docx_key)
         tags = {tag["Key"]: tag["Value"] for tag in tag_response.get("TagSet", [])}
         assert "DOCUMENT_PROCESSOR_VERSION" not in tags
 
@@ -161,18 +156,12 @@ class TestLambdaHandler:
         # Verify no processed files were created
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         contents = response.get("Contents", [])
-        assert len(contents) == 0, (
-            "No files should be created when source file is missing"
-        )
+        assert len(contents) == 0, "No files should be created when source file is missing"
 
     @patch("filetype.guess")
-    def test_lambda_handler_handles_corrupted_docx_files(
-        self, filetype_guess, s3_with_corrupted_file, caplog
-    ):
+    def test_lambda_handler_handles_corrupted_docx_files(self, filetype_guess, s3_with_corrupted_file, caplog):
         """Test lambda handler handles corrupted DOCX files"""
-        filetype_guess.return_value.mime = (
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        filetype_guess.return_value.mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         s3_client, bucket_name, object_key = s3_with_corrupted_file
 
         # Get original content before processing
@@ -225,7 +214,7 @@ class TestLambdaHandler:
                     },
                 }
                 for i, file_key in enumerate(files, 1)
-            ]
+            ],
         }
 
         # Call lambda handler
@@ -247,9 +236,7 @@ class TestLambdaHandler:
             assert processed_content != input_docx
 
             # Check version tag was added
-            tag_response = s3_client.get_object_tagging(
-                Bucket=bucket_name, Key=file_key
-            )
+            tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=file_key)
             tags = {tag["Key"]: tag["Value"] for tag in tag_response.get("TagSet", [])}
             assert tags.get("DOCUMENT_PROCESSOR_VERSION") == __version__
 
@@ -331,9 +318,7 @@ class TestLambdaHandler:
         object_keys = [obj["Key"] for obj in list_response.get("Contents", [])]
         assert len(object_keys) == 1
 
-    def test_lambda_handler_processes_files_with_different_major_version(
-        self, s3_setup, input_docx
-    ):
+    def test_lambda_handler_processes_files_with_different_major_version(self, s3_setup, input_docx):
         """Test lambda handler processes files that have a different major version tag"""
         s3_client, bucket_name = s3_setup
         object_key = "old_major_version.docx"
@@ -372,9 +357,7 @@ class TestLambdaHandler:
         assert len(object_keys) == 1
         assert object_key in object_keys
 
-    def test_lambda_handler_skips_files_with_same_major_version(
-        self, s3_setup, input_docx, caplog
-    ):
+    def test_lambda_handler_skips_files_with_same_major_version(self, s3_setup, input_docx, caplog):
         """Test lambda handler skips files that have the same major version but different minor/patch version"""
         s3_client, bucket_name = s3_setup
         object_key = "same_major_version.docx"
@@ -423,10 +406,7 @@ class TestLambdaHandler:
         assert tags.get("DOCUMENT_PROCESSOR_VERSION") == version
 
         # Verify the log message indicates skipping due to compatible version
-        assert (
-            f"has already been processed with compatible version {version}"
-            in caplog.text
-        )
+        assert f"has already been processed with compatible version {version}" in caplog.text
         assert f"current: {__version__}" in caplog.text
 
     def test_lambda_handler_handles_malformed_version_tags(self, s3_setup, input_docx):

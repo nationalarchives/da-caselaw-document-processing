@@ -1,6 +1,7 @@
-import pymupdf
 import hashlib
 import os
+
+import pymupdf
 
 DEBUG_IMG_DIR = "debug-images"
 

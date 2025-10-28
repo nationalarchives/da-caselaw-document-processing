@@ -1,7 +1,8 @@
-from tempfile import NamedTemporaryFile
-from PIL import Image, ImageChops
 import io
+from tempfile import NamedTemporaryFile
+
 import filetype
+from PIL import Image, ImageChops
 
 
 def file_wrapper(file_content, fn, extension) -> bytes:

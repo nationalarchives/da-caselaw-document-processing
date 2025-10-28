@@ -1,6 +1,7 @@
-import logging
 import io
-from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED
+import logging
+from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
+
 import lxml.etree
 
 logger = logging.getLogger()
@@ -21,9 +22,7 @@ def _strip_forbidden_attributes(root: lxml.etree._Element) -> None:
     for attribute in forbidden_attributes:
         attribute_namespace, _, attribute_name = attribute.partition(":")
         for node in root.xpath(f"//*[@{attribute}]", namespaces=NAMESPACES):
-            node.attrib[f"{{{NAMESPACES[attribute_namespace]}}}{attribute_name}"] = (
-                REDACTION_STRING
-            )
+            node.attrib[f"{{{NAMESPACES[attribute_namespace]}}}{attribute_name}"] = REDACTION_STRING
 
 
 def _strip_forbidden_tags(root: lxml.etree._Element) -> None:
@@ -54,9 +53,7 @@ def strip_docx_author_metadata_from_docx(input_docx: bytes) -> bytes:
 
     with (
         ZipFile(input_buffer, "r") as archive_input,
-        ZipFile(
-            output_buffer, "w", compression=ZIP_DEFLATED, compresslevel=6
-        ) as archive_output,
+        ZipFile(output_buffer, "w", compression=ZIP_DEFLATED, compresslevel=6) as archive_output,
     ):
         for archive_filename in archive_input.namelist():
             with archive_input.open(archive_filename, "r") as f:

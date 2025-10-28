@@ -1,7 +1,8 @@
 import subprocess
-from subprocess import STDOUT, PIPE
-from utils import file_wrapper, image_compare
+from subprocess import PIPE, STDOUT
+
 from exceptions import CleansingError
+from utils import file_wrapper, image_compare
 
 
 def _clean_jpeg(filename: str) -> None:
@@ -22,9 +23,7 @@ def _clean_jpeg(filename: str) -> None:
 
 
 def _info(filename: str) -> bytes:
-    return subprocess.run(
-        ["exiftool", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT
-    ).stdout
+    return subprocess.run(["exiftool", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
 
 
 # The following functions take `bytes` and return bytes from either the file or the log
