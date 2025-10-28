@@ -3,7 +3,17 @@ import boto3
 from urllib.parse import unquote_plus
 import clean_docx
 import clean_pdf
+import clean_jpeg
+import clean_png
 from exceptions import VisuallyDifferentError
+import utils
+
+MODULE_FOR_MIME_TYPE = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": clean_docx,
+    "image/png": clean_png,
+    "image/jpeg": clean_jpeg,
+    "application/pdf": clean_pdf,
+}
 
 __version__="0.1.0-dev"
 
@@ -48,20 +58,10 @@ def lambda_handler(event, context):
                 response = s3.get_object(Bucket=bucket_name, Key=object_key)
                 file_content = response['Body'].read()
 
-                extension = object_key.split(".")[-1].lower()
-                # TODO: work out what sort of file it is from magic numbers
-                # extensions are less reliable
-
-                file_type = extension
-
-                if file_type == "docx":
-                    clean_module = clean_docx
-                    content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                elif file_type == "pdf":
-                    clean_module = clean_pdf
-                    content_type= "application/pdf"
-                else:
-                    logger.warning(f"Skipping unrecognised file: {object_key} {file_content[:5]!r}")
+                content_type = utils.mimetype(file_content)
+                clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
+                if not clean_module:
+                    logger.warning(f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}")
                     continue
 
                 output_bytes = clean_module.clean(file_content)
@@ -77,7 +77,7 @@ def lambda_handler(event, context):
                     Tagging=f'DOCUMENT_PROCESSOR_VERSION={document_processor_version}'
                 )
 
-                logger.info(f"Successfully processed and rewrote {file_type}: {object_key}")
+                logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
 
             except Exception as e:
                 logger.error(f"Failed to process file {object_key}: {e}", exc_info=True)
