@@ -1,4 +1,3 @@
-import os
 import logging
 import io
 from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED
@@ -72,7 +71,7 @@ def clean(file_content):
     try:
         return strip_docx_author_metadata_from_docx(file_content)
     except BadZipFile:
-        logger.error(f"File is not a valid DOCX (zip) file.")
+        logger.error("File is not a valid DOCX (zip) file.")
         raise
 
 

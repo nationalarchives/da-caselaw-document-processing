@@ -2,8 +2,6 @@ import os
 import pytest
 import boto3
 from moto import mock_aws
-from clean_docx import strip_docx_author_metadata_from_docx
-from lambda_function import lambda_handler, __version__
 
 
 def load_bytes(filename):

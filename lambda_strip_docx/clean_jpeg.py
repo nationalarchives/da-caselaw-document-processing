@@ -2,7 +2,6 @@ import subprocess
 from subprocess import STDOUT, PIPE
 from utils import file_wrapper, image_compare
 from exceptions import CleansingError
-import io
 
 
 def _clean_jpeg(filename: str) -> None:

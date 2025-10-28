@@ -1,7 +1,5 @@
 import pymupdf
 import hashlib
-from operator import ne
-from itertools import compress, count
 import os
 
 DEBUG_IMG_DIR = "debug-images"
