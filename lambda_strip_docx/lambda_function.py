@@ -88,13 +88,13 @@ def lambda_handler(event, context):
 
                 logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
 
-            except Exception as e:
-                logger.error(f"Failed to process file {object_key}: {e}", exc_info=True)
+            except Exception:
+                logger.exception(f"Failed to process file {object_key}")
                 continue
 
             # Log completion using available record information
             logger.info(f"Processing finished on object: {object_key}")
 
-    except Exception as e:
-        logger.error(f"Lambda execution failed: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Lambda execution failed")
         raise
