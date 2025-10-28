@@ -33,7 +33,6 @@ def assert_docx_metadata_is_stripped(docx_bytes):
 
             # All forbidden tags should be empty
             for tag in forbidden_tags:
-                tag_prefix, tag_name = tag.split(":")
                 # Check for both self-closing and empty tags
                 empty_patterns = [
                     f"<{tag}></{tag}>",  # Empty tag
