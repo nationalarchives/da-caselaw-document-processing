@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import filetype
@@ -16,7 +17,7 @@ def file_wrapper(file_content, fn, extension) -> bytes:
         retval = fn(filename=tempfile.name)
         if retval is not None:
             return retval
-        with open(tempfile.name, "rb") as f:
+        with Path(tempfile.name).open("rb") as f:
             return f.read()
 
 

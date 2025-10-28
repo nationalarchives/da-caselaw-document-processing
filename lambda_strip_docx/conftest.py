@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import boto3
 import pytest
@@ -6,7 +6,7 @@ from moto import mock_aws
 
 
 def load_bytes(filename):
-    with open(filename, "rb") as f:
+    with Path(filename).open("rb") as f:
         return f.read()
 
 
@@ -14,7 +14,7 @@ def load_bytes(filename):
 
 
 def test_file(filename):
-    return os.path.join(os.path.dirname(__file__), "test_files", filename)
+    return Path(Path(__file__).parent / "test_files" / filename)
 
 
 @pytest.fixture

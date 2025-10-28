@@ -1,5 +1,5 @@
 import hashlib
-import os
+from pathlib import Path
 
 import pymupdf
 
@@ -17,8 +17,8 @@ def save_pngs(bytes) -> None:
     """Save PNGs for debugging purposes"""
     doc = pymupdf.Document(stream=bytes)
     for i, page in enumerate(doc):
-        os.mkdir(DEBUG_IMG_DIR)
-        with open(f"{DEBUG_IMG_DIR}/{i}.png", "wb") as f:
+        Path(DEBUG_IMG_DIR).mkdir()
+        with Path(f"{DEBUG_IMG_DIR}/{i}.png").open("wb") as f:
             f.write(page.get_pixmap().tobytes("png"))
 
 
