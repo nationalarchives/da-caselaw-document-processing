@@ -21,7 +21,8 @@ def test_clean_pdf_removes_author_metadata_and_tracked_changes(input_pdf):
     output_qdf = clean_pdf.qdf(output_pdf)
     assert b"%QDF-1.0" in input_qdf
     assert b"Author" not in output_qdf
-    assert b"Alice" not in output_qdf and alice not in output_qdf
+    assert b"Alice" not in output_qdf
+    assert alice not in output_qdf
 
     # exiftool reports no recoverable metadata
     clean_pdf.verify_removal(output_pdf)

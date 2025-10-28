@@ -18,7 +18,7 @@ def save_pngs(bytes) -> None:
     doc = pymupdf.Document(stream=bytes)
     for i, page in enumerate(doc):
         os.mkdir(DEBUG_IMG_DIR)
-        with open("{DEBUG_IMG_DIR}/{i}.png", "wb") as f:
+        with open(f"{DEBUG_IMG_DIR}/{i}.png", "wb") as f:
             f.write(page.get_pixmap().tobytes("png"))
 
 

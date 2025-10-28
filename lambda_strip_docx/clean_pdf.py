@@ -42,12 +42,14 @@ def _verify_removal(filename: str) -> bool:
     """Verify that exiftool cannot restore an author name"""
     output = subprocess.run(
         ["exiftool", "-pdf-update:all=", filename],
-        check=False, stdout=PIPE,
+        check=False,
+        stdout=PIPE,
         stderr=STDOUT,
         timeout=10,
     )
     if b"no previous ExifTool update" not in output.stdout:
-        raise RuntimeError("ExifTool data reversable")
+        msg = "ExifTool data reversable"
+        raise RuntimeError(msg)
 
     # Return something to avoid wrapper returning the file contents
     return True

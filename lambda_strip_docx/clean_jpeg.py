@@ -17,9 +17,11 @@ def _clean_jpeg(filename: str) -> None:
 
     output_string = output.stdout.decode("utf-8")
     if "ICC_Profile deleted" in output_string:
-        raise CleansingError("ICC_Profile deleted")
+        msg = "ICC_Profile deleted"
+        raise CleansingError(msg)
     if "Warning:" in output_string:
-        raise CleansingError(f"Unexpected exiftool warning {output_string}")
+        msg = f"Unexpected exiftool warning {output_string}"
+        raise CleansingError(msg)
 
 
 def _info(filename: str) -> bytes:

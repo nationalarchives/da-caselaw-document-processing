@@ -74,7 +74,8 @@ def lambda_handler(event, context):
 
                 output_bytes = clean_module.clean(file_content)
                 if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
-                    raise VisuallyDifferentError(f"S3 key {object_key} was visually different after cleaning.")
+                    msg = f"S3 key {object_key} was visually different after cleaning."
+                    raise VisuallyDifferentError(msg)
 
                 # Write the processed file back to S3
                 s3.put_object(

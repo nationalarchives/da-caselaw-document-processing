@@ -17,8 +17,7 @@ def file_wrapper(file_content, fn, extension) -> bytes:
         if retval is not None:
             return retval
         with open(tempfile.name, "rb") as f:
-            output_bytes = f.read()
-        return output_bytes
+            return f.read()
 
 
 def image_compare(file_content_a, file_content_b):

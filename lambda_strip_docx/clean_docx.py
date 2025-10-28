@@ -68,7 +68,7 @@ def clean(file_content):
     try:
         return strip_docx_author_metadata_from_docx(file_content)
     except BadZipFile:
-        logger.error("File is not a valid DOCX (zip) file.")
+        logger.exception("File is not a valid DOCX (zip) file.")
         raise
 
 

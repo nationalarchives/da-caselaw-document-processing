@@ -70,7 +70,9 @@ class TestLambdaHandler:
         assert len(processed_content) > 0
 
     def test_lambda_handler_processes_pdf_files_without_version_tag(
-        self, s3_with_multipage_pdf_file, input_multipage_pdf,
+        self,
+        s3_with_multipage_pdf_file,
+        input_multipage_pdf,
     ):
         # We use the multipage pdf because the normal PDF contains annotations which cause differences in output
         # which raise errors when we compare the images
@@ -91,7 +93,11 @@ class TestLambdaHandler:
 
     @patch("exceptions.VisuallyDifferentError")
     def test_lambda_handler_does_not_overwrite_visually_different_pdf_files(
-        self, vis_diff_error, s3_with_pdf_file, input_pdf, caplog,
+        self,
+        vis_diff_error,
+        s3_with_pdf_file,
+        input_pdf,
+        caplog,
     ):
         """The default PDF file contains annotations which cause a visual difference when removed.
         Ensure that, at least for now, it does not cause the PDF to be saved with that difference"""

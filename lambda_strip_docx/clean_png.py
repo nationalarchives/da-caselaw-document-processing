@@ -17,7 +17,8 @@ def _clean_png(filename: str) -> None:
 
     output_string = output.stdout.decode("utf-8")
     if "Warning:" in output_string:
-        raise CleansingError(f"Unexpected exiftool warning {output_string}")
+        msg = f"Unexpected exiftool warning {output_string}"
+        raise CleansingError(msg)
 
 
 def _info(filename: str) -> bytes:
