@@ -21,6 +21,62 @@ __version__ = "0.1.0-dev"
 
 
 def lambda_handler(event, context):
+    def per_record(record) -> None:
+        # Extract bucket name and object key from the S3 event
+        bucket_name = record["s3"]["bucket"]["name"]
+        object_key = unquote_plus(record["s3"]["object"]["key"])
+
+        logger.info(f"Processing file: {object_key} from bucket: {bucket_name}")
+
+        # Check if the file has already been processed
+        tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
+        tags = {tag["Key"]: tag["Value"] for tag in tags_response.get("TagSet", [])}
+
+        if "DOCUMENT_PROCESSOR_VERSION" in tags:
+            existing_version = tags["DOCUMENT_PROCESSOR_VERSION"]
+            try:
+                current_major_version = document_processor_version.split(".")[0]
+                existing_major_version = existing_version.split(".")[0]
+
+                if current_major_version == existing_major_version:
+                    logger.info(
+                        f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.",
+                    )
+                    return
+            except (IndexError, AttributeError):
+                # If version parsing fails, proceed with processing to be safe
+                logger.warning(
+                    f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.",
+                )
+
+        # Read the file from S3
+        response = s3.get_object(Bucket=bucket_name, Key=object_key)
+        file_content = response["Body"].read()
+
+        content_type = utils.mimetype(file_content)
+        clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
+        if not clean_module:
+            logger.warning(
+                f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
+            )
+            return
+
+        output_bytes = clean_module.clean(file_content)
+        if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
+            msg = f"S3 key {object_key} was visually different after cleaning."
+            raise VisuallyDifferentError(msg)
+
+        # Write the processed file back to S3
+        s3.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=output_bytes,
+            ContentType=content_type,
+            Tagging=f"DOCUMENT_PROCESSOR_VERSION={document_processor_version}",
+        )
+
+        logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
@@ -32,62 +88,9 @@ def lambda_handler(event, context):
 
         # Process each record in the S3 event
         for record in event.get("Records", []):
+            object_key = unquote_plus(record["s3"]["object"]["key"])
             try:
-                # Extract bucket name and object key from the S3 event
-                bucket_name = record["s3"]["bucket"]["name"]
-                object_key = unquote_plus(record["s3"]["object"]["key"])
-
-                logger.info(f"Processing file: {object_key} from bucket: {bucket_name}")
-
-                # Check if the file has already been processed
-                tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
-                tags = {tag["Key"]: tag["Value"] for tag in tags_response.get("TagSet", [])}
-
-                if "DOCUMENT_PROCESSOR_VERSION" in tags:
-                    existing_version = tags["DOCUMENT_PROCESSOR_VERSION"]
-                    try:
-                        current_major_version = document_processor_version.split(".")[0]
-                        existing_major_version = existing_version.split(".")[0]
-
-                        if current_major_version == existing_major_version:
-                            logger.info(
-                                f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.",
-                            )
-                            continue
-                    except (IndexError, AttributeError):
-                        # If version parsing fails, proceed with processing to be safe
-                        logger.warning(
-                            f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.",
-                        )
-
-                # Read the file from S3
-                response = s3.get_object(Bucket=bucket_name, Key=object_key)
-                file_content = response["Body"].read()
-
-                content_type = utils.mimetype(file_content)
-                clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
-                if not clean_module:
-                    logger.warning(
-                        f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
-                    )
-                    continue
-
-                output_bytes = clean_module.clean(file_content)
-                if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
-                    msg = f"S3 key {object_key} was visually different after cleaning."
-                    raise VisuallyDifferentError(msg)
-
-                # Write the processed file back to S3
-                s3.put_object(
-                    Bucket=bucket_name,
-                    Key=object_key,
-                    Body=output_bytes,
-                    ContentType=content_type,
-                    Tagging=f"DOCUMENT_PROCESSOR_VERSION={document_processor_version}",
-                )
-
-                logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
-
+                per_record(record)
             except Exception:
                 logger.exception(f"Failed to process file {object_key}")
                 continue

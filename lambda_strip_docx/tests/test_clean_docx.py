@@ -1,6 +1,6 @@
 import io
 import re
-from zipfile import ZipFile, BadZipFile
+from zipfile import BadZipFile, ZipFile
 
 import pytest
 
