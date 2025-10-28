@@ -21,7 +21,7 @@ __version__ = "0.1.0-dev"
 
 
 def lambda_handler(event, context):
-    def per_record(record) -> None:
+    def handle_one_record(record) -> None:
         # Extract bucket name and object key from the S3 event
         bucket_name = record["s3"]["bucket"]["name"]
         object_key = unquote_plus(record["s3"]["object"]["key"])
@@ -90,7 +90,7 @@ def lambda_handler(event, context):
         for record in event.get("Records", []):
             object_key = unquote_plus(record["s3"]["object"]["key"])
             try:
-                per_record(record)
+                handle_one_record(record)
             except Exception:
                 logger.exception(f"Failed to process file {object_key}")
                 continue
