@@ -2,13 +2,14 @@ import subprocess
 from subprocess import PIPE, STDOUT
 
 from exceptions import CleansingError
+from tools import EXIFTOOL
 from utils import file_wrapper, image_compare
 
 
 def _clean_png(filename: str) -> None:
     # Preserve the ICC profile as that can change image colours
     output = subprocess.run(
-        ["exiftool", "-all:all=", filename],
+        [EXIFTOOL, "-all:all=", filename],
         stdout=PIPE,
         stderr=STDOUT,
         timeout=10,
@@ -22,7 +23,7 @@ def _clean_png(filename: str) -> None:
 
 
 def _info(filename: str) -> bytes:
-    return subprocess.run(["exiftool", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
+    return subprocess.run([EXIFTOOL, filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
 
 
 # The following functions take `bytes` and return bytes from either the file or the log

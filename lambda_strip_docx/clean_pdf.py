@@ -2,6 +2,7 @@ import subprocess
 from subprocess import PIPE, STDOUT
 
 from render_pdf import visually_identical
+from tools import EXIFTOOL, PDFCPU, QPDF
 from utils import file_wrapper
 
 
@@ -9,39 +10,39 @@ def _qdf(filename: str) -> None:
     """Convert a PDF file into QDF format (which is still a valid PDF) since QDF files are
     readable and uncompressed."""
     subprocess.run(
-        ["qpdf", "--qdf", "--object-streams=disable", "--replace-input", filename],
+        [QPDF, "--qdf", "--object-streams=disable", "--replace-input", filename],
         timeout=10,
         check=True,
     )
 
 
 def _remove_annotations(filename: str) -> None:
-    subprocess.run(["pdfcpu", "annot", "remove", filename], check=False, timeout=10, stdout=PIPE, stderr=STDOUT)
+    subprocess.run([PDFCPU, "annot", "remove", filename], check=False, timeout=10, stdout=PIPE, stderr=STDOUT)
 
 
 def _remove_properties(filename: str) -> None:
     # Removing all the properties [nothing specified] does not appear to remove the predefined ones, like Author.
-    subprocess.run(["pdfcpu", "prop", "remove", filename], timeout=10, check=True)
+    subprocess.run([PDFCPU, "prop", "remove", filename], timeout=10, check=True)
     subprocess.run(
-        ["pdfcpu", "prop", "add", filename, "Author=", "Subject=", "Title="],
+        [PDFCPU, "prop", "add", filename, "Author=", "Subject=", "Title="],
         timeout=10,
         check=True,
     )
     subprocess.run(
-        ["pdfcpu", "prop", "remove", filename, "Author", "Subject", "Title"],
+        [PDFCPU, "prop", "remove", filename, "Author", "Subject", "Title"],
         timeout=10,
         check=True,
     )
 
 
 def _info(filename: str) -> bytes:
-    return subprocess.run(["pdfcpu", "info", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
+    return subprocess.run([PDFCPU, "info", filename], timeout=10, check=True, stdout=PIPE, stderr=STDOUT).stdout
 
 
 def _verify_removal(filename: str) -> bool:
     """Verify that exiftool cannot restore an author name"""
     output = subprocess.run(
-        ["exiftool", "-pdf-update:all=", filename],
+        [EXIFTOOL, "-pdf-update:all=", filename],
         check=False,
         stdout=PIPE,
         stderr=STDOUT,
