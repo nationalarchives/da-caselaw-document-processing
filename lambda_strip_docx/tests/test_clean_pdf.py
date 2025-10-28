@@ -1,11 +1,12 @@
 import clean_pdf
 from render_pdf import visually_identical
 
+
 def test_clean_pdf_removes_author_metadata_and_tracked_changes(input_pdf):
     # Note: we can't check the image is the same as it contains annotations which get flattened onto the image
 
     # alice in hex-encoded UTF-16, as it may appear in qdf format
-    alice= b"0041006c006900630065"
+    alice = b"0041006c006900630065"
 
     # the input PDF contains Author data (via QPDF)
     input_qdf = clean_pdf.qdf(input_pdf)
@@ -34,10 +35,12 @@ def test_clean_pdf_removes_author_metadata_and_tracked_changes(input_pdf):
 
     assert not visually_identical(input_pdf, output_pdf)
 
+
 def test_pdf_without_annotations_visually_unchanged(input_multipage_pdf):
     pdf = input_multipage_pdf
     output_pdf = clean_pdf.clean(pdf)
     assert visually_identical(pdf, output_pdf)
+
 
 def test_pdf_with_annotations_visually_changed(input_pdf):
     pdf = input_pdf
