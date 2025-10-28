@@ -1,11 +1,8 @@
 import urllib
 import logging
-from moto import mock_aws
 from clean_docx import strip_docx_author_metadata_from_docx
 from lambda_function import lambda_handler, __version__
-from exceptions import VisuallyDifferentError
 from unittest.mock import patch
-import re
 
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):

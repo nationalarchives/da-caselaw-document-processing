@@ -3,7 +3,6 @@ from zipfile import ZipFile
 import io
 import re
 from clean_docx import strip_docx_author_metadata_from_docx
-from lambda_function import __version__
 
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):

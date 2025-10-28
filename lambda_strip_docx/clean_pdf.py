@@ -15,7 +15,7 @@ def _qdf(filename: str) -> None:
 
 
 def _remove_annotations(filename: str) -> None:
-    output = subprocess.run(
+    subprocess.run(
         ["pdfcpu", "annot", "remove", filename], timeout=10, stdout=PIPE, stderr=STDOUT
     )
 
