@@ -45,6 +45,7 @@ repos:
     rev: v1.16.0
     hooks:
       - id: zizmor
+        args: [--fix, --min-severity=low]
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.103.0
@@ -56,3 +57,8 @@ repos:
           - --hook-config=--parallelism-limit=1
           - --args=--severity=CRITICAL
           - --args=--ignorefile=__GIT_WORKING_DIR__/.trivyignore
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.4.2
+    hooks:
+      - id: python-safety-dependencies-check

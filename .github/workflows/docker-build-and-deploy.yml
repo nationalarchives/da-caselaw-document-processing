@@ -1,0 +1,39 @@
+name: Build Cleanser Lambda Docker Image and Deploy to Lambda
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to build and deploy to"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+jobs:
+  build-deploy:
+    if: ${{ github.event.inputs.environment != 'production' || startsWith(github.ref, 'refs/tags/v') }}
+    uses: ./.github/workflows/_reusable_ecr_deploy.yml
+    with:
+      image_tag: ${{ github.event.inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v') && github.ref_name || github.sha }}
+      ref: ${{ github.ref_name }}
+      environment: ${{ github.event.inputs.environment || 'staging' }}
+      aws_region: eu-west-2
+      dockerfile_directory: "lambda_strip_docx"
+      lambda_function_name: "document-cleanser-lambda"
+    secrets:
+      WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}
+      WIZ_CLIENT_SECRET: ${{ secrets.WIZ_CLIENT_SECRET }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}

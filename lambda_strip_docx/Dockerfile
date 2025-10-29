@@ -24,14 +24,17 @@ RUN wget https://github.com/exiftool/exiftool/archive/refs/tags/13.38.tar.gz && 
     rm -rf exiftool-13.38 13.38.tar.gz
 
 # Install pdfcpu to /usr/local/bin (accessible by Lambda runtime user)
-RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.0 && \
+RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
     cp /root/go/bin/pdfcpu /usr/local/bin/ && \
     chmod 755 /usr/local/bin/pdfcpu && \
     rm -rf /root/go
 
+RUN rm -rf /usr/lib/golang
+
+
 # Install Poetry
-RUN pip install --upgrade pip==25.2 && \
-    pip install poetry==2.2.0
+RUN pip install --upgrade pip==25.2 --no-cache-dir && \
+    pip install poetry==2.2.0 --no-cache-dir
 
 # Configure Poetry and install dependencies
 ENV POETRY_NO_INTERACTION=1

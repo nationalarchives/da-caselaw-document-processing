@@ -19,17 +19,14 @@ on:
         options:
           - "false"
           - "true"
+      ECR_IMAGE_TAG:
+        description: "Docker image tag to deploy"
+        required: true
   push:
     branches:
       - main
     tags:
       - "v*"
-    paths:
-      - "terraform/**"
-      - ".github/workflows/terraform-plan-and-apply.yml"
-  pull_request:
-    branches:
-      - main
     paths:
       - "terraform/**"
       - ".github/workflows/terraform-plan-and-apply.yml"
@@ -46,7 +43,7 @@ jobs:
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'staging' }}
+    environment: ${{ github.event.inputs.environment || 'staging' }}
     permissions:
       contents: read
       id-token: write
@@ -56,6 +53,9 @@ jobs:
       TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
       TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
       # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
+      INPUT_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+      INPUT_APPLY: ${{ github.event.inputs.apply || 'false' }}
+      ECR_IMAGE_TAG: ${{ github.event.inputs.ECR_IMAGE_TAG }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -81,9 +81,11 @@ jobs:
         run: terraform validate -no-color
         working-directory: terraform
       - name: Terraform Plan
-        run: terraform plan
+        run: |
+          terraform plan -input=false -var="ECR_IMAGE_TAG=$ECR_IMAGE_TAG"
         working-directory: terraform
       - name: Terraform Apply
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.apply == 'true' && ((github.event.inputs.environment == 'staging' && github.ref == 'refs/heads/main') || (github.event.inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v'))) }}
-        run: terraform apply -auto-approve
+        if: ${{ env.INPUT_APPLY == 'true' && (env.INPUT_ENVIRONMENT == 'staging' || (env.INPUT_ENVIRONMENT == 'production' && startsWith(github.ref_name, 'v'))) }}
+        run: |
+          terraform apply -auto-approve -var="ECR_IMAGE_TAG=$ECR_IMAGE_TAG"
         working-directory: terraform
