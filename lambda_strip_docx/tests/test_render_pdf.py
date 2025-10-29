@@ -1,4 +1,3 @@
-from render_pdf import visually_identical, hash_pdf_image
 from clean_pdf import compare
 
 

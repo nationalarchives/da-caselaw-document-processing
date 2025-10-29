@@ -1,7 +1,9 @@
-from tempfile import NamedTemporaryFile
-from PIL import Image, ImageChops
 import io
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
 import filetype
+from PIL import Image, ImageChops
 
 
 def file_wrapper(file_content, fn, extension) -> bytes:
@@ -15,9 +17,8 @@ def file_wrapper(file_content, fn, extension) -> bytes:
         retval = fn(filename=tempfile.name)
         if retval is not None:
             return retval
-        with open(tempfile.name, "rb") as f:
-            output_bytes = f.read()
-        return output_bytes
+        with Path(tempfile.name).open("rb") as f:
+            return f.read()
 
 
 def image_compare(file_content_a, file_content_b):

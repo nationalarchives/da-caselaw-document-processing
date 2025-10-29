@@ -1,13 +1,12 @@
-import os
-import pytest
+from pathlib import Path
+
 import boto3
+import pytest
 from moto import mock_aws
-from clean_docx import strip_docx_author_metadata_from_docx
-from lambda_function import lambda_handler, __version__
 
 
 def load_bytes(filename):
-    with open(filename, "rb") as f:
+    with Path(filename).open("rb") as f:
         return f.read()
 
 
@@ -15,7 +14,7 @@ def load_bytes(filename):
 
 
 def test_file(filename):
-    return os.path.join(os.path.dirname(__file__), "test_files", filename)
+    return Path(Path(__file__).parent / "test_files" / filename)
 
 
 @pytest.fixture
@@ -72,9 +71,7 @@ def s3_with_png_file(s3_setup, input_png):
     object_key = "crest.png"
 
     # Upload the DOCX file to S3
-    s3_client.put_object(
-        Bucket=bucket_name, Key=object_key, Body=input_png, ContentType="image/png"
-    )
+    s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=input_png, ContentType="image/png")
 
     return s3_client, bucket_name, object_key
 
@@ -86,9 +83,7 @@ def s3_with_jpeg_file(s3_setup, input_jpeg):
     object_key = "art.jpeg"
 
     # Upload the DOCX file to S3
-    s3_client.put_object(
-        Bucket=bucket_name, Key=object_key, Body=input_jpeg, ContentType="image/jpeg"
-    )
+    s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=input_jpeg, ContentType="image/jpeg")
 
     return s3_client, bucket_name, object_key
 
