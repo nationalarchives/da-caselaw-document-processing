@@ -24,6 +24,12 @@ def input_docx():
 
 
 @pytest.fixture
+def input_docx_with_comments():
+    """Load sample DOCX file with comments as bytes"""
+    return load_bytes(test_file("sample_with_author_with_comments.docx"))
+
+
+@pytest.fixture
 def input_pdf():
     """Load sample PDF file as bytes"""
     return load_bytes(test_file("sample_pdf_with_author.pdf"))
@@ -99,6 +105,23 @@ def s3_with_docx_file(s3_setup, input_docx):
         Bucket=bucket_name,
         Key=object_key,
         Body=input_docx,
+        ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+    return s3_client, bucket_name, object_key
+
+
+@pytest.fixture
+def s3_with_docx_file_with_comments(s3_setup, input_docx_with_comments):
+    """S3 environment with a DOCX file uploaded"""
+    s3_client, bucket_name = s3_setup
+    object_key = "sample_with_author_with_comments.docx"
+
+    # Upload the DOCX file to S3
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=input_docx_with_comments,
         ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
 

@@ -1,9 +1,15 @@
 # Base stage - common setup
-FROM public.ecr.aws/lambda/python:3.13@sha256:0b267232e8fa99b53c7d02c62f833bd84a71173c597553e39da87b24303c2d2d AS base
+FROM amazon/aws-lambda-python:3.13-arm64@sha256:e4a95e53d5280edb70a1c06696278a96dc9bf7f6789b323f08f4386791a041b2 AS base
 
 # Install system dependencies for PDF processing tests
 RUN microdnf update -y && \
     microdnf install -y \
+        # X11/runtime libraries LibreOffice needs
+        libXinerama \
+        cups-libs \
+        dbus-glib \
+        libxslt \
+        openssl \
         wget-1.21.3-1.amzn2023.0.4 \
         golang-1.24.7-1.amzn2023.0.1 \
         qpdf-10.6.3-4.amzn2023.0.4 \
@@ -43,6 +49,24 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false && \
     poetry install --only=main --no-root
 
+
+# Install LibreOffice headless
+RUN wget https://download.documentfoundation.org/libreoffice/stable/25.8.2/rpm/aarch64/LibreOffice_25.8.2_Linux_aarch64_rpm.tar.gz
+
+RUN tar -xzf LibreOffice_25.8.2_Linux_aarch64_rpm.tar.gz && \
+    cd LibreOffice_25.8.2.2_Linux_aarch64_rpm/  && \
+    cd RPMS/ && \
+    rpm -Uvh *.rpm && \
+    cd ../.. && \
+    rm -rf LibreOffice_25.8.2_Linux_aarch64_rpm LibreOffice_25.8.2_Linux_aarch64_rpm.tar.gz
+
+RUN export LD_LIBRARY_PATH=:/usr/lib/libreoffice25.8/program
+
+RUN dnf install -y openssl nss cairo libX11-xcb
+RUN libreoffice25.8 --version
+
+RUN ln -sf /opt/libreoffice25.8/program/soffice /usr/bin/soffice
+
 # Copy function code
 COPY . /var/task/
 
@@ -51,6 +75,8 @@ FROM base AS test
 
 # Install test dependencies using Poetry
 RUN poetry install --with=dev --no-root
+
+RUN pip install pytest==7.4.2 "moto[s3]==5.1.15" --no-cache-dir
 
 # Override the entrypoint for tests
 ENTRYPOINT []
