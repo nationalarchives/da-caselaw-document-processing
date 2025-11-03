@@ -2,11 +2,7 @@
 
 AWS Lambda function for document processing (privacy, metadata stripping, etc.).
 
-## Deployment
-
-This project uses Terraform for infrastructure deployment. See the Terraform section below for deployment instructions.
-
-### Local Development and Testing
+## Local Development and Testing
 
 #### 1. Python Environment
 
@@ -19,24 +15,7 @@ source .venv/bin/activate
 
 #### 2. Install Dependencies
 
-Install the required dependencies for the DOCX Lambda:
-
-```sh
-pip install -r lambda_strip_docx/requirements-dev.txt
-```
-
-#### 3. Run Unit Tests
-
-Place a sample DOCX with author metadata in `lambda_strip_docx/test_files/sample_with_author.docx` and run:
-
-**Option A: Run tests locally with Python:**
-
-```sh
-cd lambda_strip_docx
-pytest
-```
-
-**Option B: Run tests in Docker container (recommended - matches CI/CD):**
+#### 3. Run Tests in Docker container (matches CI/CD)
 
 ```sh
 # From project root
@@ -50,7 +29,7 @@ This builds the test Docker image with all required system dependencies (includi
 You can test the Lambda locally using Docker:
 
 ```sh
-docker build -t docx-lambda-test -f lambda_strip_docx/Dockerfile lambda_strip_docx/
+docker build -t docx-lambda-test -f **document_cleanser_lambda**/Dockerfile document_cleanser_lambda/
 docker run -d --name docx-lambda-test -p 9000:8080 docx-lambda-test
 sleep 10
 curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
@@ -191,15 +170,3 @@ You deploy a new application version by building and pushing a Docker image tagg
 - All production deployments require manual approval and must use a GitHub release tag as the image tag.
 - Maintains clear separation between application and infrastructure versioning.
 - Avoids complexity of GPG signing in CI/CD.
-
----
-
-# Pre-commit and Repo Standards
-
-This repository uses [pre-commit](https://pre-commit.com/) and [detect-secrets](https://github.com/Yelp/detect-secrets) to enforce code quality and prevent secrets leakage. See [The Engineering Handbook](https://national-archives.atlassian.net/wiki/spaces/DAAE/pages/47775767/Engineering+Handbook) for more details.
-
----
-
-## Coming Soon
-
-**PDF author metadata cleansing Lambda** will be added in a separate PR.

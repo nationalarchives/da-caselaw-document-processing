@@ -1,4 +1,4 @@
-# Document Cleansing Lambda Infrastructure
+# Document Cleanser Lambda Infrastructure
 # This Terraform configuration deploys a Lambda function for stripping author metadata
 # from documents (DOCX, PDF, etc.) with production-ready VPC networking and security controls.
 # Uses DA Terraform modules for consistent infrastructure patterns.

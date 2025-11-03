@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "AWS Lambda function for cleaning DOCX and PDF documents"
 authors = ["The National Archives <digitalrecords@nationalarchives.gov.uk>"]
 readme = "README.md"
-packages = [{include = "lambda_strip_docx", from = "."}]
+packages = [{include = "document_cleanser_lambda", from = "."}]
 
 [tool.poetry.dependencies]
 python = "^3.13"

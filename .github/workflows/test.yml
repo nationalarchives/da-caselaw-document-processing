@@ -20,7 +20,7 @@ jobs:
       - name: Build test Docker image
         run: |
           echo "🔨 Building test Docker image..."
-          docker build --target test -t document-cleaner-test lambda_strip_docx/
+          docker build --target test -t document-cleaner-test document_cleanser_lambda/
 
       - name: Run tests in Docker container
         run: |
