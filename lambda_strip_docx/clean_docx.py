@@ -4,6 +4,8 @@ from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 
 import lxml.etree
 
+import docx_visual_comparison
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -73,5 +75,4 @@ def clean(file_content):
 
 
 def compare(file_content_a, file_content_b) -> bool | None:
-    """Placeholder"""
-    return None
+    return docx_visual_comparison.visually_identical(file_content_a, file_content_b)
