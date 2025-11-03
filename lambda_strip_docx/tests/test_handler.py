@@ -452,3 +452,31 @@ class TestLambdaHandler:
         """AWS expects the tag to be URI encoded; ensure that it is URI-safe for our convenience.
         https://boto3.amazonaws.com/v1/documentation/api/1.28.3/reference/services/s3/client/put_object.html"""
         assert __version__ == urllib.parse.quote_plus(__version__)
+
+    def test_dont_process_docx_file_with_comments(
+        self,
+        s3_with_docx_file_with_comments,
+        input_docx_with_comments,
+        caplog,
+    ):
+        """Test lambda handler skips DOCX files that contain comments"""
+        s3_client, bucket_name, object_key = s3_with_docx_file_with_comments
+
+        # Create S3 event
+        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+
+        # Call lambda handler
+        lambda_handler(event, {})
+
+        # Verify log message indicating skipping due to comments
+        assert f"Failed to process file {object_key}" in caplog.text
+
+        # Verify the file was not modified (content should remain the same)
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        current_content = response["Body"].read()
+        assert current_content == input_docx_with_comments
+
+        # Verify no version tag was added
+        tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
+        tags = {tag["Key"]: tag["Value"] for tag in tag_response.get("TagSet", [])}
+        assert "DOCUMENT_PROCESSOR_VERSION" not in tags
