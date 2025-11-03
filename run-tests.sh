@@ -18,8 +18,8 @@ docker buildx build \
 	--target test \
 	-t document-cleaner-test \
 	--load \
-	-f lambda_strip_docx/Dockerfile \
-	lambda_strip_docx/
+	-f document_cleanser_lambda/Dockerfile \
+	document_cleanser_lambda/
 
 echo "🧪 Running tests in Docker container..."
 docker run --rm document-cleaner-test

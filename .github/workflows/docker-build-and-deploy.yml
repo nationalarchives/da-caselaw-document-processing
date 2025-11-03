@@ -29,7 +29,7 @@ jobs:
       ref: ${{ github.ref_name }}
       environment: ${{ github.event.inputs.environment || 'staging' }}
       aws_region: eu-west-2
-      dockerfile_directory: "lambda_strip_docx"
+      dockerfile_directory: "document_cleanser_lambda"
       lambda_function_name: "document-cleanser-lambda"
     secrets:
       WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}

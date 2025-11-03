@@ -124,7 +124,7 @@ check_prerequisites() {
 build_image() {
     log_info "Building Docker image for DOCX Cleanser Lambda..."
 
-    cd "$(dirname "$0")/../lambda_strip_docx"
+    cd "$(dirname "$0")/../document_cleanser_lambda"
 
     # Build with explicit platform for Lambda (linux/amd64)
     docker build --platform linux/amd64 -t "$REPOSITORY_NAME:$IMAGE_TAG" .
