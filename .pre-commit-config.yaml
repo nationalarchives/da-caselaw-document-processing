@@ -61,3 +61,6 @@ repos:
     rev: v1.4.2
     hooks:
       - id: python-safety-dependencies-check
+        additional_dependencies:
+          - poetry_plugin_export
+          - packaging==25.0
