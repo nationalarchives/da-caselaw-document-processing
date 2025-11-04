@@ -91,10 +91,12 @@ class TestLambdaHandler:
         assert processed_content != input_multipage_pdf
         assert len(processed_content) > 0
 
+    @patch("lambda_function.rollbar")
     @patch("exceptions.VisuallyDifferentError")
     def test_lambda_handler_does_not_overwrite_visually_different_pdf_files(
         self,
         vis_diff_error,
+        rollbar,
         s3_with_pdf_file,
         input_pdf,
         caplog,
@@ -118,6 +120,7 @@ class TestLambdaHandler:
             "exceptions.VisuallyDifferentError: S3 key sample_pdf_with_author.pdf was visually different after cleaning."
             in caplog.text
         )
+        rollbar.report_exc_info.assert_called_with(extra_data={"object_key": object_key})
 
     def test_lambda_handler_skips_non_docx_files(self, s3_setup, caplog):
         """Test lambda handler skips non-DOCX files"""
@@ -165,7 +168,8 @@ class TestLambdaHandler:
         assert len(contents) == 0, "No files should be created when source file is missing"
 
     @patch("filetype.guess")
-    def test_lambda_handler_handles_corrupted_docx_files(self, filetype_guess, s3_with_corrupted_file, caplog):
+    @patch("lambda_function.rollbar")
+    def test_lambda_handler_handles_corrupted_docx_files(self, rollbar, filetype_guess, s3_with_corrupted_file, caplog):
         """Test lambda handler handles corrupted DOCX files"""
         filetype_guess.return_value.mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         s3_client, bucket_name, object_key = s3_with_corrupted_file
@@ -194,6 +198,7 @@ class TestLambdaHandler:
         # Verify expected log messages
         assert "Processing file: corrupted.docx from bucket: test-bucket" in caplog.text
         assert "File is not a valid DOCX (zip) file." in caplog.text
+        rollbar.report_exc_info.assert_called_with(extra_data={"object_key": "corrupted.docx"})
 
     def test_lambda_handler_processes_multiple_records(self, s3_setup, input_docx):
         """Test lambda handler processes multiple S3 records"""
