@@ -18,13 +18,11 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
 
-      - name: Install Poetry and export plugin
+      - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python - --version 2.2.0
           # Add poetry bin to PATH for following steps
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-          # Install poetry export plugin so pre-commit hooks that rely on pyproject.toml work
-          poetry self add poetry-plugin-export
 
       - name: Cache pre-commit hooks
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
