@@ -1,7 +1,10 @@
 import logging
+import os
 from urllib.parse import unquote_plus
 
 import boto3
+import rollbar
+from dotenv import load_dotenv
 
 import clean_docx
 import clean_jpeg
@@ -10,14 +13,18 @@ import clean_png
 import utils
 from exceptions import VisuallyDifferentError
 
+load_dotenv()
+
+
+__version__ = "0.1.0-dev"
+rollbar.init(os.getenv("ROLLBAR_TOKEN", ""), environment=os.getenv("ROLLBAR_ENV", "unknown"), code_version=__version__)
+
 MODULE_FOR_MIME_TYPE = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": clean_docx,
     "image/png": clean_png,
     "image/jpeg": clean_jpeg,
     "application/pdf": clean_pdf,
 }
-
-__version__ = "0.1.0-dev"
 
 
 def lambda_handler(event, context):
@@ -93,6 +100,7 @@ def lambda_handler(event, context):
                 handle_one_record(record)
             except Exception:
                 logger.exception(f"Failed to process file {object_key}")
+                rollbar.report_exc_info(extra_data={"object_key": object_key})
                 continue
 
             # Log completion using available record information
