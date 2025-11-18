@@ -471,13 +471,6 @@ resource "aws_s3_bucket_notification" "document_processing" {
   lambda_function {
     lambda_function_arn = module.document_cleanser_lambda.lambda_arn
     events              = ["s3:ObjectCreated:*"]
-    filter_suffix       = ".docx"
-  }
-
-  lambda_function {
-    lambda_function_arn = module.document_cleanser_lambda.lambda_arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_suffix       = ".pdf"
   }
 
   depends_on = [module.document_cleanser_lambda]
