@@ -1,6 +1,9 @@
 # Base stage - common setup
 FROM public.ecr.aws/lambda/python:3.13@sha256:899566894a5f7c21aef834cc74f1f743f989c4beb976800d35b75b9d95fcd48b AS base
 
+# Set HOME to /tmp to avoid permission issues during builds
+ENV HOME=/tmp
+
 # Install system dependencies for PDF processing tests
 RUN microdnf update -y && \
     microdnf install -y \
@@ -37,12 +40,19 @@ RUN wget https://github.com/exiftool/exiftool/archive/refs/tags/13.38.tar.gz && 
     cd .. && \
     rm -rf exiftool-13.38 13.38.tar.gz
 
+# Verify ExifTool installation
+RUN exiftool -ver
+
 # Install pdfcpu to /usr/local/bin (accessible by Lambda runtime user)
 RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
-    cp /root/go/bin/pdfcpu /usr/local/bin/ && \
+    cp /tmp/go/bin/pdfcpu /usr/local/bin/ && \
     chmod 755 /usr/local/bin/pdfcpu && \
     rm -rf /root/go && \
     rm -rf /usr/lib/golang
+
+# Verify pdfcpu installation
+RUN pdfcpu version
+
 
 # Install LibreOffice headless
 RUN wget https://download.documentfoundation.org/libreoffice/stable/25.8.2/rpm/x86_64/LibreOffice_25.8.2_Linux_x86-64_rpm.tar.gz
@@ -56,6 +66,8 @@ RUN tar -xzf LibreOffice_25.8.2_Linux_x86-64_rpm.tar.gz && \
 
 RUN export LD_LIBRARY_PATH=:/usr/lib/libreoffice25.8/program
 RUN ln -sf /opt/libreoffice25.8/program/soffice /usr/bin/soffice
+
+# Verify LibreOffice installation
 RUN /usr/bin/soffice --version
 
 # Install Poetry
