@@ -1,5 +1,5 @@
 # Base stage - common setup
-FROM public.ecr.aws/lambda/python:3.13@sha256:56d086c45219e82697d5ac0217888fd666bd7b4596e77ecc1288b91227313e89 AS base
+FROM public.ecr.aws/lambda/python:3.13@sha256:da91b03913bc525dbee8755fac06469337038504769f1167be2951d8444e2b13 AS base
 
 # Set HOME to /tmp to avoid permission issues during builds
 ENV HOME=/tmp
