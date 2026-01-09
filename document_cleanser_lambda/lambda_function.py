@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from urllib.parse import unquote_plus
@@ -27,84 +28,89 @@ MODULE_FOR_MIME_TYPE = {
 }
 
 
-def lambda_handler(event, context):
-    def handle_one_record(record) -> None:
-        # Extract bucket name and object key from the S3 event
-        bucket_name = record["s3"]["bucket"]["name"]
-        object_key = unquote_plus(record["s3"]["object"]["key"])
+def handle_one_record(record, s3, logger) -> None:
+    # Get the document processor version
+    document_processor_version = __version__
+    # Extract bucket name and object key from the S3 event
+    bucket_name = record["s3"]["bucket"]["name"]
+    object_key = unquote_plus(record["s3"]["object"]["key"])
 
-        logger.info(f"Processing file: {object_key} from bucket: {bucket_name}")
+    logger.info(f"Processing file: {object_key} from bucket: {bucket_name}")
 
-        # Check if the file has already been processed
-        tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
-        tags = {tag["Key"]: tag["Value"] for tag in tags_response.get("TagSet", [])}
+    # Check if the file has already been processed
+    tags_response = s3.get_object_tagging(Bucket=bucket_name, Key=object_key)
+    tags = {tag["Key"]: tag["Value"] for tag in tags_response.get("TagSet", [])}
 
-        if "DOCUMENT_PROCESSOR_VERSION" in tags:
-            existing_version = tags["DOCUMENT_PROCESSOR_VERSION"]
-            try:
-                current_major_version = document_processor_version.split(".")[0]
-                existing_major_version = existing_version.split(".")[0]
+    if "DOCUMENT_PROCESSOR_VERSION" in tags:
+        existing_version = tags["DOCUMENT_PROCESSOR_VERSION"]
+        try:
+            current_major_version = document_processor_version.split(".")[0]
+            existing_major_version = existing_version.split(".")[0]
 
-                if current_major_version == existing_major_version:
-                    logger.info(
-                        f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.",
-                    )
-                    return
-            except (IndexError, AttributeError):
-                # If version parsing fails, proceed with processing to be safe
-                logger.warning(
-                    f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.",
+            if current_major_version == existing_major_version:
+                logger.info(
+                    f"File {object_key} has already been processed with compatible version {existing_version} (current: {document_processor_version}). Skipping.",
                 )
-
-        # Read the file from S3
-        response = s3.get_object(Bucket=bucket_name, Key=object_key)
-        file_content = response["Body"].read()
-
-        content_type = utils.mimetype(file_content)
-        clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
-        if not clean_module:
+                return
+        except (IndexError, AttributeError):
+            # If version parsing fails, proceed with processing to be safe
             logger.warning(
-                f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
+                f"Could not parse version strings for comparison. Existing: {existing_version}, Current: {document_processor_version}. Proceeding with processing.",
             )
-            return
 
-        output_bytes = clean_module.clean(file_content)
-        if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
-            msg = f"S3 key {object_key} was visually different after cleaning."
-            raise VisuallyDifferentError(msg)
+    # Read the file from S3
+    response = s3.get_object(Bucket=bucket_name, Key=object_key)
+    file_content = response["Body"].read()
 
-        # Write the processed file back to S3
-        s3.put_object(
-            Bucket=bucket_name,
-            Key=object_key,
-            Body=output_bytes,
-            ContentType=content_type,
-            Tagging=f"DOCUMENT_PROCESSOR_VERSION={document_processor_version}",
+    content_type = utils.mimetype(file_content)
+    clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
+    if not clean_module:
+        logger.warning(
+            f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
         )
+        return
 
-        logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
+    output_bytes = clean_module.clean(file_content)
+    if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
+        msg = f"S3 key {object_key} was visually different after cleaning."
+        raise VisuallyDifferentError(msg)
 
+    # Write the processed file back to S3
+    s3.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=output_bytes,
+        ContentType=content_type,
+        Tagging=f"DOCUMENT_PROCESSOR_VERSION={document_processor_version}",
+    )
+
+    logger.info(f"Successfully processed and rewrote {content_type}: {object_key}")
+
+
+def lambda_handler(event, context):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    # Get the document processor version
-    document_processor_version = __version__
     try:
         # Initialize S3 client
         s3 = boto3.client("s3")
 
-        # Process each record in the S3 event
-        for record in event.get("Records", []):
-            object_key = unquote_plus(record["s3"]["object"]["key"])
-            try:
-                handle_one_record(record)
-            except Exception:
-                logger.exception(f"Failed to process file {object_key}")
-                rollbar.report_exc_info(extra_data={"object_key": object_key})
-                continue
+        for sns_record in event["Records"]:
+            # Extract S3 event from SNS message
+            s3_event = json.loads(sns_record["Sns"]["Message"])
 
-            # Log completion using available record information
-            logger.info(f"Processing finished on object: {object_key}")
+            # Process each record in the S3 event
+            for record in s3_event.get("Records", []):
+                object_key = unquote_plus(record["s3"]["object"]["key"])
+                try:
+                    handle_one_record(record, s3, logger)
+                except Exception:
+                    logger.exception(f"Failed to process file {object_key}")
+                    rollbar.report_exc_info(extra_data={"object_key": object_key})
+                    continue
+
+                # Log completion using available record information
+                logger.info(f"Processing finished on object: {object_key}")
 
     except Exception:
         logger.exception("Lambda execution failed")

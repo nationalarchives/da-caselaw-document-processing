@@ -1,3 +1,4 @@
+import json
 import logging
 import urllib
 from unittest.mock import patch
@@ -7,12 +8,33 @@ from lambda_function import __version__, lambda_handler
 
 
 def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
-    """Create a mock S3 event structure"""
-    return {
+    """Create a mock SNS event containing an S3 event structure"""
+    s3_event = {
         "Records": [
             {
                 "eventID": "test-event-id",
                 "s3": {"bucket": {"name": bucket_name}, "object": {"key": object_key}},
+            },
+        ],
+    }
+    return {
+        "Records": [
+            {
+                "EventSource": "aws:sns",
+                "EventVersion": "1.0",
+                "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
+                "Sns": {
+                    "Type": "Notification",
+                    "MessageId": "test-message-id",
+                    "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+                    "Subject": "Amazon S3 Notification",
+                    "Message": json.dumps(s3_event),
+                    "Timestamp": "2026-01-09T00:00:00.000Z",
+                    "SignatureVersion": "1",
+                    "Signature": "test-signature",
+                    "SigningCertURL": "test-cert-url",
+                    "UnsubscribeURL": "test-unsubscribe-url",
+                },
             },
         ],
     }
@@ -214,8 +236,8 @@ class TestLambdaHandler:
                 ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
 
-        # Create S3 event with multiple records
-        event = {
+        # Create S3 event with multiple records wrapped in SNS message
+        s3_event = {
             "Records": [
                 {
                     "eventID": f"test-event-id-{i}",
@@ -225,6 +247,27 @@ class TestLambdaHandler:
                     },
                 }
                 for i, file_key in enumerate(files, 1)
+            ],
+        }
+        event = {
+            "Records": [
+                {
+                    "EventSource": "aws:sns",
+                    "EventVersion": "1.0",
+                    "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
+                    "Sns": {
+                        "Type": "Notification",
+                        "MessageId": "test-message-id",
+                        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+                        "Subject": "Amazon S3 Notification",
+                        "Message": json.dumps(s3_event),
+                        "Timestamp": "2026-01-09T00:00:00.000Z",
+                        "SignatureVersion": "1",
+                        "Signature": "test-signature",
+                        "SigningCertURL": "test-cert-url",
+                        "UnsubscribeURL": "test-unsubscribe-url",
+                    },
+                },
             ],
         }
 
@@ -255,8 +298,29 @@ class TestLambdaHandler:
         """Test lambda handler handles empty Records gracefully"""
         s3_client, bucket_name = s3_setup
 
-        # Create S3 event with no records
-        event = {"Records": []}
+        # Create SNS event with S3 event that has no records
+        s3_event = {"Records": []}
+        event = {
+            "Records": [
+                {
+                    "EventSource": "aws:sns",
+                    "EventVersion": "1.0",
+                    "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
+                    "Sns": {
+                        "Type": "Notification",
+                        "MessageId": "test-message-id",
+                        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+                        "Subject": "Amazon S3 Notification",
+                        "Message": json.dumps(s3_event),
+                        "Timestamp": "2026-01-09T00:00:00.000Z",
+                        "SignatureVersion": "1",
+                        "Signature": "test-signature",
+                        "SigningCertURL": "test-cert-url",
+                        "UnsubscribeURL": "test-unsubscribe-url",
+                    },
+                },
+            ],
+        }
 
         # Call lambda handler - should not raise exception
         lambda_handler(event, {})
@@ -270,8 +334,29 @@ class TestLambdaHandler:
         """Test lambda handler handles missing Records key gracefully"""
         s3_client, bucket_name = s3_setup
 
-        # Create S3 event with no Records key
-        event = {}
+        # Create SNS event with S3 event that has no Records key
+        s3_event = {}
+        event = {
+            "Records": [
+                {
+                    "EventSource": "aws:sns",
+                    "EventVersion": "1.0",
+                    "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
+                    "Sns": {
+                        "Type": "Notification",
+                        "MessageId": "test-message-id",
+                        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+                        "Subject": "Amazon S3 Notification",
+                        "Message": json.dumps(s3_event),
+                        "Timestamp": "2026-01-09T00:00:00.000Z",
+                        "SignatureVersion": "1",
+                        "Signature": "test-signature",
+                        "SigningCertURL": "test-cert-url",
+                        "UnsubscribeURL": "test-unsubscribe-url",
+                    },
+                },
+            ],
+        }
 
         # Call lambda handler - should not raise exception
         lambda_handler(event, {})
