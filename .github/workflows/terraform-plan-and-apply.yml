@@ -52,6 +52,7 @@ jobs:
       TF_VAR_unpublished_assets_bucket_name: ${{ secrets.TF_VAR_unpublished_assets_bucket_name }}
       TF_VAR_unpublished_assets_kms_key_arn: ${{ secrets.TF_VAR_unpublished_assets_kms_key_arn }}
       TF_VAR_s3_prefix_list_id: ${{ secrets.TF_VAR_s3_prefix_list_id }}
+      TF_VAR_pdf_generation_queue_arn: ${{ secrets.TF_VAR_pdf_generation_queue_arn }}
       # TF_VAR_legacy_kms_key_arns: ${{ secrets.TF_VAR_legacy_kms_key_arns }}
       INPUT_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
       INPUT_APPLY: ${{ github.event.inputs.apply || 'false' }}

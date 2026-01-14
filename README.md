@@ -99,6 +99,7 @@ The Terraform configuration in the `terraform/` directory deploys the DOCX metad
 - `unpublished_assets_bucket_name`: S3 bucket for unpublished assets
 - `unpublished_assets_kms_key_arn`: KMS key ARN for bucket encryption
 - `s3_prefix_list_id`: Prefix list ID for S3 VPC endpoint
+- `pdf_generation_queue_arn`: ARN of the SQS queue for PDF generation that subscribes to S3 events via SNS
 
 #### Outputs
 
@@ -110,6 +111,20 @@ See `main.tf` for all outputs, including Lambda ARNs, security group IDs, subnet
 - All AWS service access via VPC endpoints
 - Minimal IAM permissions
 - KMS integration for encrypted S3 objects
+
+#### Architecture
+
+The infrastructure uses an SNS topic as an intermediary between S3 bucket notifications and downstream consumers:
+
+```
+S3 Bucket (Object Created)
+    ↓
+SNS Topic (document-processing-s3-events)
+    ├→ Lambda Function (document cleanser)
+    └→ SQS Queue (PDF generation - raw message delivery)
+```
+
+This fan-out pattern enables S3 events to be delivered to multiple subscribers simultaneously. The SQS subscription uses raw message delivery to preserve the original S3 event format, requiring no changes to the ECS task event parsing logic.
 
 #### Notes
 

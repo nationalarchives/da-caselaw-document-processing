@@ -19,6 +19,9 @@ unpublished_assets_kms_key_arn = "arn:aws:kms:eu-west-2:123456789012:key/xxxxxxx
 # Get with: aws ec2 describe-managed-prefix-lists --filters "Name=prefix-list-name,Values=com.amazonaws.vpce.eu-west-2.s3"
 s3_prefix_list_id = "pl-xxxxxxxx"
 
+# PDF Generation Queue - ARN of the SQS queue that will receive S3 events for PDF generation
+pdf_generation_queue_arn = "arn:aws:sqs:eu-west-2:123456789012:your-pdf-generation-queue-name"
+
 # How to get the required values:
 # 1. VPC ID: aws ec2 describe-vpcs --filters "Name=tag:Name,Values=*caselaw*" --query 'Vpcs[0].VpcId'
 # 2. S3 Bucket: Use your existing unpublished assets bucket name
