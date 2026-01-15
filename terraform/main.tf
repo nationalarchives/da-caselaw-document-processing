@@ -74,6 +74,11 @@ variable "s3_prefix_list_id" {
   }
 }
 
+variable "pdf_generation_queue_arn" {
+  description = "ARN of the SQS queue for PDF generation that will subscribe to the S3 event SNS topic"
+  type        = string
+}
+
 # Validation: Ensure we have subnets in at least 2 AZs for high availability
 resource "terraform_data" "az_validation" {
   count = local.az_count >= 2 ? 0 : 1
@@ -409,10 +414,8 @@ module "document_cleanser_lambda" {
   # We'll handle these separately below
   policy_attachments = toset([])
 
-  # Lambda permissions for S3 to invoke the function
-  lambda_invoke_permissions = {
-    "s3.amazonaws.com" = "arn:aws:s3:::${var.unpublished_assets_bucket_name}"
-  }
+  # Lambda permissions are now handled via SNS (see aws_lambda_permission.allow_sns_invoke)
+  lambda_invoke_permissions = {}
 
   # CloudWatch logging configuration
   log_retention = 30
@@ -462,18 +465,125 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   ]
 }
 
-# S3 Bucket Notification (Note: This assumes the bucket already exists)
-# In practice, this might need to be applied separately if the bucket
-# is managed by a different Terraform configuration
+# ================================================================
+# SNS TOPIC FOR S3 EVENTS - FAN-OUT TO LAMBDA AND SQS
+# ================================================================
+
+# SNS Topic for S3 events - allows fan-out to multiple subscribers
+resource "aws_sns_topic" "s3_document_events" {
+  name              = "document-processing-s3-events"
+  display_name      = "Document Processing S3 Events"
+  kms_master_key_id = var.unpublished_assets_kms_key_arn
+
+  tags = merge(local.common_tags, {
+    Name = "document-processing-s3-events"
+  })
+}
+
+# SNS Topic Policy - allow S3 bucket to publish events
+resource "aws_sns_topic_policy" "s3_publish_policy" {
+  arn = aws_sns_topic.s3_document_events.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowS3ToPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.s3_document_events.arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:s3:::${var.unpublished_assets_bucket_name}"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# SNS Subscription: Lambda Function
+resource "aws_sns_topic_subscription" "lambda_subscription" {
+  topic_arn = aws_sns_topic.s3_document_events.arn
+  protocol  = "lambda"
+  endpoint  = module.document_cleanser_lambda.lambda_arn
+
+  depends_on = [
+    aws_lambda_permission.allow_sns_invoke
+  ]
+}
+
+# SNS Subscription: PDF Generation SQS Queue (with raw message delivery)
+resource "aws_sns_topic_subscription" "pdf_queue_subscription" {
+  topic_arn            = aws_sns_topic.s3_document_events.arn
+  protocol             = "sqs"
+  endpoint             = var.pdf_generation_queue_arn
+  raw_message_delivery = true
+
+  depends_on = [
+    aws_sqs_queue_policy.pdf_queue_sns_policy
+  ]
+}
+
+# Lambda Permission - allow SNS to invoke Lambda
+resource "aws_lambda_permission" "allow_sns_invoke" {
+  statement_id  = "AllowExecutionFromSNS"
+  action        = "lambda:InvokeFunction"
+  function_name = module.document_cleanser_lambda.lambda_function.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.s3_document_events.arn
+
+  depends_on = [module.document_cleanser_lambda]
+}
+
+# SQS Queue Policy - allow SNS topic to send messages to PDF generation queue
+resource "aws_sqs_queue_policy" "pdf_queue_sns_policy" {
+  queue_url = replace(var.pdf_generation_queue_arn, "arn:aws:sqs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:", "https://sqs.${data.aws_region.current.id}.amazonaws.com/${data.aws_caller_identity.current.account_id}/")
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowSNSToSendMessage"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action   = "sqs:SendMessage"
+        Resource = var.pdf_generation_queue_arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_sns_topic.s3_document_events.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# ================================================================
+# END SNS TOPIC CONFIGURATION
+# ================================================================
+
+# S3 Bucket Notification - trigger SNS topic (not Lambda directly)
+# This allows fan-out to multiple subscribers (Lambda and SQS)
 resource "aws_s3_bucket_notification" "document_processing" {
   bucket = var.unpublished_assets_bucket_name
 
-  lambda_function {
-    lambda_function_arn = module.document_cleanser_lambda.lambda_arn
-    events              = ["s3:ObjectCreated:*"]
+  topic {
+    topic_arn = aws_sns_topic.s3_document_events.arn
+    events    = ["s3:ObjectCreated:*"]
   }
 
-  depends_on = [module.document_cleanser_lambda]
+  depends_on = [
+    aws_sns_topic_policy.s3_publish_policy
+  ]
 }
 
 # Outputs for validation and monitoring
@@ -555,4 +665,25 @@ output "vpc_endpoints_dns_names" {
     ecr_dkr_dns = aws_vpc_endpoint.ecr_dkr.dns_entry[0]["dns_name"]
     logs_dns    = aws_vpc_endpoint.logs.dns_entry[0]["dns_name"]
   }
+}
+
+# SNS Topic outputs for monitoring and debugging
+output "sns_topic_arn" {
+  description = "ARN of the SNS topic for S3 document events"
+  value       = aws_sns_topic.s3_document_events.arn
+}
+
+output "sns_topic_name" {
+  description = "Name of the SNS topic for S3 document events"
+  value       = aws_sns_topic.s3_document_events.name
+}
+
+output "sns_lambda_subscription_arn" {
+  description = "ARN of the SNS subscription for Lambda"
+  value       = aws_sns_topic_subscription.lambda_subscription.arn
+}
+
+output "sns_pdf_queue_subscription_arn" {
+  description = "ARN of the SNS subscription for PDF generation queue"
+  value       = aws_sns_topic_subscription.pdf_queue_subscription.arn
 }
