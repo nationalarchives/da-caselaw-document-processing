@@ -94,6 +94,20 @@ jobs:
           CLEAN_PATH=$(echo "$DOCKERFILE_DIR" | sed 's/^"//;s/"$//')
           echo "path=$CLEAN_PATH" >> $GITHUB_OUTPUT
 
+      - name: Free up disk space before build
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          # Remove unnecessary packages and caches
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          # Clean up Docker
+          docker system prune -af --volumes
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Build and tag Docker image (with build cache)
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
@@ -103,6 +117,11 @@ jobs:
           tags: ${{ env.ECR_IMAGE_URI }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Disk space after build
+        run: |
+          echo "Disk space after build:"
+          df -h
 
       - name: Wiz Docker Scan
         run: |
