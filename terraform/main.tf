@@ -526,6 +526,21 @@ resource "aws_sns_topic_subscription" "pdf_queue_subscription" {
   endpoint             = var.pdf_generation_queue_arn
   raw_message_delivery = true
 
+  filter_policy_scope = "MessageBody"
+  filter_policy = jsonencode({
+    Records = {
+      s3 = {
+        object = {
+          key = [
+            {
+              suffix = ".docx"
+            }
+          ]
+        }
+      }
+    }
+  })
+
   depends_on = [
     aws_sqs_queue_policy.pdf_queue_sns_policy
   ]
