@@ -471,9 +471,8 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 
 # SNS Topic for S3 events - allows fan-out to multiple subscribers
 resource "aws_sns_topic" "s3_document_events" {
-  name              = "document-processing-s3-events"
-  display_name      = "Document Processing S3 Events"
-  kms_master_key_id = var.unpublished_assets_kms_key_arn
+  name         = "document-processing-s3-events"
+  display_name = "Document Processing S3 Events"
 
   tags = merge(local.common_tags, {
     Name = "document-processing-s3-events"
