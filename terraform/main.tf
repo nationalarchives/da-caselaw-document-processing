@@ -470,9 +470,11 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 # ================================================================
 
 # SNS Topic for S3 events - allows fan-out to multiple subscribers
+# Uses AWS-managed encryption key (alias/aws/sns) for at-rest encryption
 resource "aws_sns_topic" "s3_document_events" {
-  name         = "document-processing-s3-events"
-  display_name = "Document Processing S3 Events"
+  name              = "document-processing-s3-events"
+  display_name      = "Document Processing S3 Events"
+  kms_master_key_id = "alias/aws/sns"
 
   tags = merge(local.common_tags, {
     Name = "document-processing-s3-events"
