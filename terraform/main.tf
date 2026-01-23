@@ -469,12 +469,72 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 # SNS TOPIC FOR S3 EVENTS - FAN-OUT TO LAMBDA AND SQS
 # ================================================================
 
+# KMS key for SNS topic encryption
+resource "aws_kms_key" "sns_topic" {
+  description             = "KMS key for document processing SNS topic encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow S3 to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow SNS to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "document-processing-sns-key"
+  })
+}
+
+resource "aws_kms_alias" "sns_topic" {
+  name          = "alias/document-processing-sns"
+  target_key_id = aws_kms_key.sns_topic.key_id
+}
+
 # SNS Topic for S3 events - allows fan-out to multiple subscribers
-# Uses AWS-managed encryption key (alias/aws/sns) for at-rest encryption
+# Uses customer-managed KMS key for at-rest encryption
 resource "aws_sns_topic" "s3_document_events" {
   name              = "document-processing-s3-events"
   display_name      = "Document Processing S3 Events"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = aws_kms_key.sns_topic.arn
 
   tags = merge(local.common_tags, {
     Name = "document-processing-s3-events"
@@ -702,4 +762,14 @@ output "sns_lambda_subscription_arn" {
 output "sns_pdf_queue_subscription_arn" {
   description = "ARN of the SNS subscription for PDF generation queue"
   value       = aws_sns_topic_subscription.pdf_queue_subscription.arn
+}
+
+output "sns_kms_key_arn" {
+  description = "ARN of the KMS key used for SNS topic encryption"
+  value       = aws_kms_key.sns_topic.arn
+}
+
+output "sns_kms_key_id" {
+  description = "ID of the KMS key used for SNS topic encryption"
+  value       = aws_kms_key.sns_topic.key_id
 }
