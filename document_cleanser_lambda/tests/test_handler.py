@@ -419,8 +419,7 @@ class TestLambdaHandler:
         s3_client, bucket_name = s3_setup
         object_key = "old_major_version.docx"
 
-        current_major = __version__.split(".")[0]
-        version = f"1{current_major[1:]}.0.0"
+        version = "0.9.0"
 
         # Upload a DOCX file with a different major version tag
         s3_client.put_object(
