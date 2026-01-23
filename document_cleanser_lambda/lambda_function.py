@@ -17,7 +17,7 @@ from exceptions import VisuallyDifferentError
 load_dotenv()
 
 
-__version__ = "0.1.0-dev"
+__version__ = "1.0.0"
 rollbar.init(os.getenv("ROLLBAR_TOKEN", ""), environment=os.getenv("ROLLBAR_ENV", "unknown"), code_version=__version__)
 
 MODULE_FOR_MIME_TYPE = {
