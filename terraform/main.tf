@@ -656,7 +656,7 @@ module "document_processing_queue" {
   })
 }
 
-# SQS Queue Policy - allow SNS topic to send messages
+# SQS Queue Policy - allow SNS topic to send messages + enforce encryption in transit
 resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
   queue_url = module.document_processing_queue.sqs_url
 
@@ -674,6 +674,20 @@ resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
         Condition = {
           ArnEquals = {
             "aws:SourceArn" = aws_sns_topic.s3_document_events.arn
+          }
+        }
+      },
+      {
+        Sid    = "DenyInsecureTransport"
+        Effect = "Deny"
+        Principal = {
+          AWS = "*"
+        }
+        Action   = "sqs:*"
+        Resource = module.document_processing_queue.sqs_arn
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }
@@ -794,7 +808,7 @@ resource "aws_sns_topic_subscription" "pdf_queue_subscription" {
   ]
 }
 
-# SQS Queue Policy - allow SNS topic to send messages to PDF generation queue
+# SQS Queue Policy - allow SNS topic to send messages to PDF generation queue + enforce encryption in transit
 resource "aws_sqs_queue_policy" "pdf_queue_sns_policy" {
   queue_url = replace(var.pdf_generation_queue_arn, "arn:aws:sqs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:", "https://sqs.${data.aws_region.current.id}.amazonaws.com/${data.aws_caller_identity.current.account_id}/")
 
@@ -812,6 +826,20 @@ resource "aws_sqs_queue_policy" "pdf_queue_sns_policy" {
         Condition = {
           ArnEquals = {
             "aws:SourceArn" = aws_sns_topic.s3_document_events.arn
+          }
+        }
+      },
+      {
+        Sid    = "DenyInsecureTransport"
+        Effect = "Deny"
+        Principal = {
+          AWS = "*"
+        }
+        Action   = "sqs:*"
+        Resource = var.pdf_generation_queue_arn
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }
