@@ -66,7 +66,7 @@ def handle_one_record(record, s3, logger) -> None:
     clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
     if not clean_module:
         logger.warning(
-            f"Skipping unrecognised {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
+            f"Skipping unsupported {content_type or 'unknown'} file: {object_key} {file_content[:5]!r}",
         )
         return
 
@@ -88,30 +88,76 @@ def handle_one_record(record, s3, logger) -> None:
 
 
 def lambda_handler(event, context):
+    """
+    Lambda handler that processes document cleaning requests from SQS queue.
+
+    Event flow: S3 -> SNS -> SQS -> Lambda
+    - S3 sends ObjectCreated events to SNS topic
+    - SNS forwards to SQS queue (with retry and DLQ)
+    - Lambda polls SQS and processes messages
+
+    This architecture provides resilience against Lambda downtime:
+    - Messages are buffered in SQS if Lambda is unavailable
+    - Automatic retries with exponential backoff
+    - Failed messages go to DLQ after max retries
+    - No message loss during ECR image issues or Lambda failures
+    """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
+
+    # Track failed message IDs for partial batch failure reporting
+    # This allows successful messages to be deleted while failed ones are retried
+    failed_message_ids = []
 
     try:
         # Initialize S3 client
         s3 = boto3.client("s3")
 
-        for sns_record in event["Records"]:
-            # Extract S3 event from SNS message
-            s3_event = json.loads(sns_record["Sns"]["Message"])
+        # Process each SQS record
+        for sqs_record in event.get("Records", []):
+            message_id = sqs_record.get("messageId", "unknown")
 
-            # Process each record in the S3 event
-            for record in s3_event.get("Records", []):
-                object_key = unquote_plus(record["s3"]["object"]["key"])
-                try:
-                    handle_one_record(record, s3, logger)
-                except Exception:
-                    logger.exception(f"Failed to process file {object_key}")
-                    rollbar.report_exc_info(extra_data={"object_key": object_key})
-                    continue
+            try:
+                # Extract SNS message from SQS record body
+                sns_message = json.loads(sqs_record["body"])
 
-                # Log completion using available record information
-                logger.info(f"Processing finished on object: {object_key}")
+                # Extract S3 event from SNS message (SNS envelope format)
+                s3_event = json.loads(sns_message["Message"])
+
+                # Process each S3 record in the event
+                for s3_record in s3_event.get("Records", []):
+                    object_key = unquote_plus(s3_record["s3"]["object"]["key"])
+
+                    try:
+                        handle_one_record(s3_record, s3, logger)
+                        logger.info(f"Successfully processed object: {object_key}")
+                    except Exception:
+                        logger.exception(f"Failed to process file {object_key}")
+                        rollbar.report_exc_info(
+                            extra_data={"object_key": object_key, "message_id": message_id, "sqs_record": sqs_record},
+                        )
+                        # Add message ID to failed list for partial batch failure
+                        failed_message_ids.append(message_id)
+                        # Don't re-raise - we've already logged and reported to rollbar
+                        # The message is marked as failed via failed_message_ids list
+                        break  # Stop processing remaining S3 records in this SQS message
+
+            except Exception:
+                logger.exception(f"Failed to process SQS message {message_id}")
+                # Only report to rollbar if not already reported in inner handler
+                if message_id not in failed_message_ids:
+                    rollbar.report_exc_info(extra_data={"message_id": message_id, "sqs_record": sqs_record})
+                    failed_message_ids.append(message_id)
 
     except Exception:
-        logger.exception("Lambda execution failed")
+        logger.exception("Lambda execution failed with unhandled exception")
         raise
+
+    # Return partial batch failure response if any messages failed
+    # This tells SQS which messages to retry and which to delete
+    if failed_message_ids:
+        logger.warning(f"Failed to process {len(failed_message_ids)} message(s): {failed_message_ids}")
+        return {"batchItemFailures": [{"itemIdentifier": msg_id} for msg_id in failed_message_ids]}
+
+    logger.info("All messages processed successfully")
+    return {"batchItemFailures": []}

@@ -469,9 +469,9 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 # SNS TOPIC FOR S3 EVENTS - FAN-OUT TO LAMBDA AND SQS
 # ================================================================
 
-# KMS key for SNS topic encryption
+# KMS key for SNS topic and SQS queues encryption
 resource "aws_kms_key" "sns_topic" {
-  description             = "KMS key for document processing SNS topic encryption"
+  description             = "KMS key for document processing SNS topic and SQS queues encryption"
   deletion_window_in_days = 30
   enable_key_rotation     = true
 
@@ -515,17 +515,50 @@ resource "aws_kms_key" "sns_topic" {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
         }
+      },
+      {
+        Sid    = "Allow SQS to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "sqs.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "Allow Lambda to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       }
     ]
   })
 
   tags = merge(local.common_tags, {
-    Name = "document-processing-sns-key"
+    Name = "document-processing-sns-sqs-key"
   })
 }
 
 resource "aws_kms_alias" "sns_topic" {
-  name          = "alias/document-processing-sns"
+  name          = "alias/document-processing-sns-sqs"
   target_key_id = aws_kms_key.sns_topic.key_id
 }
 
@@ -569,14 +602,168 @@ resource "aws_sns_topic_policy" "s3_publish_policy" {
   })
 }
 
-# SNS Subscription: Lambda Function
-resource "aws_sns_topic_subscription" "lambda_subscription" {
-  topic_arn = aws_sns_topic.s3_document_events.arn
-  protocol  = "lambda"
-  endpoint  = module.document_cleanser_lambda.lambda_arn
+# ================================================================
+# SQS QUEUE FOR LAMBDA PROCESSING WITH DLQ
+# ================================================================
+# This queue sits between SNS and Lambda to provide:
+# - Message buffering if Lambda is down (e.g., ECR image issues)
+# - Automatic retries with exponential backoff
+# - Dead Letter Queue (DLQ) for permanently failed messages
+# - No message loss during Lambda downtime
+
+module "document_processing_queue" {
+  source = "github.com/nationalarchives/da-terraform-modules//sqs?ref=93712ba9b01e10aad16b331a0d8cb16322924222"
+
+  queue_name = "document-processing-lambda-queue"
+
+  # DLQ Configuration - messages move here after max retries exhausted
+  create_dlq               = true
+  redrive_maximum_receives = 3 # Try processing 3 times before sending to DLQ
+
+  # Timeout Configuration
+  # Lambda has 300s timeout, so we need visibility timeout > 300s
+  # This prevents messages being reprocessed while Lambda is still working
+  visibility_timeout = 360 # 6 minutes (Lambda timeout + buffer)
+
+  # Message Retention - keep messages for 4 days in main queue
+  message_retention_seconds = 345600 # 4 days
+
+  # DLQ Retention - keep failed messages for 14 days for investigation
+  dlq_message_retention_seconds = 1209600 # 14 days
+
+  # Encryption using the same KMS key as SNS
+  encryption_type = "kms"
+  kms_key_id      = aws_kms_key.sns_topic.id
+
+  # Enable long polling to reduce costs
+  receive_wait_time_seconds = 20
+
+  # CloudWatch Alarms for queue monitoring
+  alarm_name_prefix    = "document-processing"
+  alarm_sns_topic_arns = [] # TODO: Add SNS topic for alarms if needed
+
+  # Monitor when messages are in the queue for too long
+  create_delayed_message_alert = true
+  delayed_message_threshold    = 10 # Alert if > 10 messages delayed
+
+  # Monitor DLQ for failed messages
+  create_dlq_alert       = true
+  dlq_alarm_threshold    = 1 # Alert immediately when any message hits DLQ
+  dlq_evaluation_periods = 1
+
+  common_tags = merge(local.common_tags, {
+    Purpose = "Lambda message buffering with retry and DLQ"
+  })
+}
+
+# SQS Queue Policy - allow SNS topic to send messages
+resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
+  queue_url = module.document_processing_queue.sqs_url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowSNSToSendMessage"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action   = "sqs:SendMessage"
+        Resource = module.document_processing_queue.sqs_arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_sns_topic.s3_document_events.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# ================================================================
+# END SQS QUEUE CONFIGURATION
+# ================================================================
+
+# SNS Subscription: Document Processing SQS Queue (with raw message delivery)
+# This replaces the direct SNS -> Lambda subscription
+resource "aws_sns_topic_subscription" "document_queue_subscription" {
+  topic_arn            = aws_sns_topic.s3_document_events.arn
+  protocol             = "sqs"
+  endpoint             = module.document_processing_queue.sqs_arn
+  raw_message_delivery = false # Keep SNS envelope for debugging
 
   depends_on = [
-    aws_lambda_permission.allow_sns_invoke
+    aws_sqs_queue_policy.document_queue_sns_policy
+  ]
+}
+
+# Lambda Permission - allow SQS to invoke Lambda (replaces SNS permission)
+resource "aws_lambda_permission" "allow_sqs_invoke" {
+  statement_id  = "AllowExecutionFromSQS"
+  action        = "lambda:InvokeFunction"
+  function_name = module.document_cleanser_lambda.lambda_function.function_name
+  principal     = "sqs.amazonaws.com"
+  source_arn    = module.document_processing_queue.sqs_arn
+
+  depends_on = [module.document_cleanser_lambda]
+}
+
+# Lambda Event Source Mapping - connect SQS queue to Lambda
+# This enables Lambda to poll the SQS queue and process messages with retries
+resource "aws_lambda_event_source_mapping" "sqs_to_lambda" {
+  event_source_arn = module.document_processing_queue.sqs_arn
+  function_name    = module.document_cleanser_lambda.lambda_function.function_name
+
+  # Batch Configuration
+  batch_size                         = 1 # Process one message at a time for reliability
+  maximum_batching_window_in_seconds = 0 # Process immediately
+
+  # Error Handling
+  # With 3 retries configured, Lambda will attempt processing 3 times
+  # before the message goes to the DLQ (configured in SQS redrive_maximum_receives)
+  function_response_types = ["ReportBatchItemFailures"] # Enable partial batch failures
+
+  # Scaling Configuration
+  scaling_config {
+    maximum_concurrency = 5 # Limit concurrent executions to prevent overwhelming Lambda
+  }
+
+  depends_on = [
+    aws_lambda_permission.allow_sqs_invoke,
+    module.document_processing_queue
+  ]
+}
+
+# IAM Policy for Lambda to consume from SQS
+resource "aws_iam_role_policy" "lambda_sqs_policy" {
+  name = "document-cleanser-lambda-sqs-access"
+  role = local.lambda_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        Resource = module.document_processing_queue.sqs_arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = aws_kms_key.sns_topic.arn
+      }
+    ]
+  })
+
+  depends_on = [
+    module.document_cleanser_lambda
   ]
 }
 
@@ -605,17 +792,6 @@ resource "aws_sns_topic_subscription" "pdf_queue_subscription" {
   depends_on = [
     aws_sqs_queue_policy.pdf_queue_sns_policy
   ]
-}
-
-# Lambda Permission - allow SNS to invoke Lambda
-resource "aws_lambda_permission" "allow_sns_invoke" {
-  statement_id  = "AllowExecutionFromSNS"
-  action        = "lambda:InvokeFunction"
-  function_name = module.document_cleanser_lambda.lambda_function.function_name
-  principal     = "sns.amazonaws.com"
-  source_arn    = aws_sns_topic.s3_document_events.arn
-
-  depends_on = [module.document_cleanser_lambda]
 }
 
 # SQS Queue Policy - allow SNS topic to send messages to PDF generation queue
@@ -754,9 +930,9 @@ output "sns_topic_name" {
   value       = aws_sns_topic.s3_document_events.name
 }
 
-output "sns_lambda_subscription_arn" {
-  description = "ARN of the SNS subscription for Lambda"
-  value       = aws_sns_topic_subscription.lambda_subscription.arn
+output "sns_document_queue_subscription_arn" {
+  description = "ARN of the SNS subscription for document processing queue"
+  value       = aws_sns_topic_subscription.document_queue_subscription.arn
 }
 
 output "sns_pdf_queue_subscription_arn" {
@@ -764,12 +940,38 @@ output "sns_pdf_queue_subscription_arn" {
   value       = aws_sns_topic_subscription.pdf_queue_subscription.arn
 }
 
-output "sns_kms_key_arn" {
-  description = "ARN of the KMS key used for SNS topic encryption"
+output "sns_sqs_kms_key_arn" {
+  description = "ARN of the KMS key used for SNS topic and SQS queues encryption"
   value       = aws_kms_key.sns_topic.arn
 }
 
-output "sns_kms_key_id" {
-  description = "ID of the KMS key used for SNS topic encryption"
+output "sns_sqs_kms_key_id" {
+  description = "ID of the KMS key used for SNS topic and SQS queues encryption"
   value       = aws_kms_key.sns_topic.key_id
+}
+
+# SQS Queue outputs for monitoring and debugging
+output "document_processing_queue_url" {
+  description = "URL of the document processing SQS queue"
+  value       = module.document_processing_queue.sqs_url
+}
+
+output "document_processing_queue_arn" {
+  description = "ARN of the document processing SQS queue"
+  value       = module.document_processing_queue.sqs_arn
+}
+
+output "document_processing_dlq_url" {
+  description = "URL of the document processing DLQ (Dead Letter Queue)"
+  value       = module.document_processing_queue.dlq_sqs_url
+}
+
+output "document_processing_dlq_arn" {
+  description = "ARN of the document processing DLQ (Dead Letter Queue)"
+  value       = module.document_processing_queue.dlq_sqs_arn
+}
+
+output "lambda_event_source_mapping_uuid" {
+  description = "UUID of the Lambda event source mapping (SQS to Lambda)"
+  value       = aws_lambda_event_source_mapping.sqs_to_lambda.uuid
 }
