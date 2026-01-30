@@ -7,8 +7,28 @@ from clean_docx import strip_docx_author_metadata_from_docx
 from lambda_function import __version__, lambda_handler
 
 
-def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
-    """Create a mock SNS event containing an S3 event structure"""
+def create_sqs_event(bucket_name="test-bucket", object_key="test.docx", message_id="test-sqs-message-id-1"):
+    """
+    Create a mock SQS event containing an SNS message with an S3 event structure.
+
+    This reflects the new architecture: S3 -> SNS -> SQS -> Lambda
+
+    Event structure:
+    {
+      "Records": [  # SQS records
+        {
+          "messageId": "...",
+          "body": "{...}"  # Contains SNS message as JSON string
+        }
+      ]
+    }
+
+    The body contains an SNS message:
+    {
+      "Message": "{...}"  # Contains S3 event as JSON string
+    }
+    """
+    # Original S3 event structure
     s3_event = {
         "Records": [
             {
@@ -17,24 +37,39 @@ def create_s3_event(bucket_name="test-bucket", object_key="test.docx"):
             },
         ],
     }
+
+    # SNS message wrapping the S3 event
+    sns_message = {
+        "Type": "Notification",
+        "MessageId": "test-sns-message-id",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+        "Subject": "Amazon S3 Notification",
+        "Message": json.dumps(s3_event),
+        "Timestamp": "2026-01-09T00:00:00.000Z",
+        "SignatureVersion": "1",
+        "Signature": "test-signature",
+        "SigningCertURL": "test-cert-url",
+        "UnsubscribeURL": "test-unsubscribe-url",
+    }
+
+    # SQS event wrapping the SNS message
     return {
         "Records": [
             {
-                "EventSource": "aws:sns",
-                "EventVersion": "1.0",
-                "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
-                "Sns": {
-                    "Type": "Notification",
-                    "MessageId": "test-message-id",
-                    "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
-                    "Subject": "Amazon S3 Notification",
-                    "Message": json.dumps(s3_event),
-                    "Timestamp": "2026-01-09T00:00:00.000Z",
-                    "SignatureVersion": "1",
-                    "Signature": "test-signature",
-                    "SigningCertURL": "test-cert-url",
-                    "UnsubscribeURL": "test-unsubscribe-url",
+                "messageId": message_id,
+                "receiptHandle": "test-receipt-handle",
+                "body": json.dumps(sns_message),
+                "attributes": {
+                    "ApproximateReceiveCount": "1",
+                    "SentTimestamp": "1641686400000",
+                    "SenderId": "AIDAI1234567890",
+                    "ApproximateFirstReceiveTimestamp": "1641686400000",
                 },
+                "messageAttributes": {},
+                "md5OfBody": "test-md5",
+                "eventSource": "aws:sqs",
+                "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:test-queue",
+                "awsRegion": "us-east-1",
             },
         ],
     }
@@ -44,14 +79,17 @@ class TestLambdaHandler:
     """Tests for the lambda_handler function"""
 
     def test_lambda_handler_processes_docx_files_without_version_tag(self, s3_with_docx_file, input_docx):
-        """Test lambda handler processes files without a version tag"""
+        """Test lambda handler processes files without a version tag and returns empty batchItemFailures"""
         s3_client, bucket_name, object_key = s3_with_docx_file
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
-        lambda_handler(event, {})
+        result = lambda_handler(event, {})
+
+        # Verify success response
+        assert result == {"batchItemFailures": []}
 
         # Get the processed file and verify it's different from original
         processed_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
@@ -63,8 +101,8 @@ class TestLambdaHandler:
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_jpeg_file
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
@@ -79,8 +117,8 @@ class TestLambdaHandler:
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_png_file
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
@@ -101,8 +139,8 @@ class TestLambdaHandler:
         """Test lambda handler processes files without a version tag"""
         s3_client, bucket_name, object_key = s3_with_multipage_pdf_file
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
@@ -127,8 +165,8 @@ class TestLambdaHandler:
         Ensure that, at least for now, it does not cause the PDF to be saved with that difference"""
         s3_client, bucket_name, object_key = s3_with_pdf_file
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler: note the VisuallyDifferentError is caught and silenced.
         with caplog.at_level(logging.INFO):
@@ -142,23 +180,32 @@ class TestLambdaHandler:
             "exceptions.VisuallyDifferentError: S3 key sample_pdf_with_author.pdf was visually different after cleaning."
             in caplog.text
         )
-        rollbar.report_exc_info.assert_called_with(extra_data={"object_key": object_key})
+        # Verify rollbar was called with enhanced error context
+        rollbar.report_exc_info.assert_called()
+        call_args = rollbar.report_exc_info.call_args
+        extra_data = call_args[1]["extra_data"]
+        assert extra_data["object_key"] == object_key
+        assert "message_id" in extra_data
+        assert "sqs_record" in extra_data
 
-    def test_lambda_handler_skips_non_docx_files(self, s3_setup, caplog):
-        """Test lambda handler skips non-DOCX files"""
+    def test_lambda_handler_skips_unrecognized_file_types(self, s3_setup, caplog):
+        """Test lambda handler skips unrecognized file types and returns success"""
         s3_client, bucket_name = s3_setup
         original_content = b"text file content"
 
-        # Upload a non-DOCX file
+        # Upload an unsupported file type
         non_docx_key = "test.txt"
         s3_client.put_object(Bucket=bucket_name, Key=non_docx_key, Body=original_content)
 
-        # Create S3 event for the non-DOCX file
-        event = create_s3_event(bucket_name=bucket_name, object_key=non_docx_key)
+        # Create SQS event for the unsupported file type
+        event = create_sqs_event(bucket_name=bucket_name, object_key=non_docx_key)
 
         # Call lambda handler
         with caplog.at_level(logging.INFO):
-            lambda_handler(event, {})
+            result = lambda_handler(event, {})
+
+        # Verify skipping unsupported files is treated as success
+        assert result == {"batchItemFailures": []}
 
         # Verify the file was not modified (content should remain the same)
         response = s3_client.get_object(Bucket=bucket_name, Key=non_docx_key)
@@ -172,17 +219,22 @@ class TestLambdaHandler:
 
         # Verify expected log messages
         assert "Processing file: test.txt from bucket: test-bucket" in caplog.text
-        assert "Skipping unrecognised unknown file: test.txt b'text '" in caplog.text
+        assert "Skipping unsupported unknown file: test.txt" in caplog.text
 
-    def test_lambda_handler_handles_missing_file(self, s3_setup):
-        """Test lambda handler handles missing S3 files gracefully"""
+    @patch("lambda_function.rollbar")
+    def test_lambda_handler_handles_missing_file(self, mock_rollbar, s3_setup):
+        """Test lambda handler handles missing S3 files and returns batchItemFailures"""
         s3_client, bucket_name = s3_setup
 
-        # Create S3 event for a file that doesn't exist
-        event = create_s3_event(bucket_name=bucket_name, object_key="nonexistent.docx")
+        # Create SQS event for a file that doesn't exist
+        message_id = "msg-missing-file"
+        event = create_sqs_event(bucket_name=bucket_name, object_key="nonexistent.docx", message_id=message_id)
 
-        # Call lambda handler - should not raise exception
-        lambda_handler(event, {})
+        # Call lambda handler
+        result = lambda_handler(event, {})
+
+        # Verify message ID is returned in batchItemFailures
+        assert result == {"batchItemFailures": [{"itemIdentifier": message_id}]}
 
         # Verify no processed files were created
         response = s3_client.list_objects_v2(Bucket=bucket_name)
@@ -192,7 +244,7 @@ class TestLambdaHandler:
     @patch("filetype.guess")
     @patch("lambda_function.rollbar")
     def test_lambda_handler_handles_corrupted_docx_files(self, rollbar, filetype_guess, s3_with_corrupted_file, caplog):
-        """Test lambda handler handles corrupted DOCX files"""
+        """Test lambda handler handles corrupted DOCX files and returns batchItemFailures"""
         filetype_guess.return_value.mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         s3_client, bucket_name, object_key = s3_with_corrupted_file
 
@@ -200,12 +252,16 @@ class TestLambdaHandler:
         original_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         original_content = original_response["Body"].read()
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        message_id = "msg-corrupted"
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key, message_id=message_id)
 
-        # Call lambda handler - should not raise exception
+        # Call lambda handler
         with caplog.at_level(logging.INFO):
-            lambda_handler(event, {})
+            result = lambda_handler(event, {})
+
+        # Verify message ID is returned in batchItemFailures
+        assert result == {"batchItemFailures": [{"itemIdentifier": message_id}]}
 
         # Verify the file was not modified due to corruption
         current_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
@@ -217,10 +273,15 @@ class TestLambdaHandler:
         tags = {tag["Key"]: tag["Value"] for tag in tag_response.get("TagSet", [])}
         assert "DOCUMENT_PROCESSOR_VERSION" not in tags
 
-        # Verify expected log messages
+        # Verify expected log messages and rollbar call
         assert "Processing file: corrupted.docx from bucket: test-bucket" in caplog.text
         assert "File is not a valid DOCX (zip) file." in caplog.text
-        rollbar.report_exc_info.assert_called_with(extra_data={"object_key": "corrupted.docx"})
+        rollbar.report_exc_info.assert_called()
+        call_args = rollbar.report_exc_info.call_args
+        extra_data = call_args[1]["extra_data"]
+        assert extra_data["object_key"] == "corrupted.docx"
+        assert extra_data["message_id"] == message_id
+        assert "sqs_record" in extra_data
 
     def test_lambda_handler_processes_multiple_records(self, s3_setup, input_docx):
         """Test lambda handler processes multiple S3 records"""
@@ -236,7 +297,7 @@ class TestLambdaHandler:
                 ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
 
-        # Create S3 event with multiple records wrapped in SNS message
+        # Create SQS event with multiple records wrapped in SNS message, wrapped in SQS
         s3_event = {
             "Records": [
                 {
@@ -249,24 +310,34 @@ class TestLambdaHandler:
                 for i, file_key in enumerate(files, 1)
             ],
         }
+
+        # SNS message wrapping the S3 event
+        sns_message = {
+            "Type": "Notification",
+            "MessageId": "test-sns-message-id",
+            "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+            "Subject": "Amazon S3 Notification",
+            "Message": json.dumps(s3_event),
+            "Timestamp": "2026-01-09T00:00:00.000Z",
+            "SignatureVersion": "1",
+            "Signature": "test-signature",
+            "SigningCertURL": "test-cert-url",
+            "UnsubscribeURL": "test-unsubscribe-url",
+        }
+
+        # SQS event wrapping the SNS message
         event = {
             "Records": [
                 {
-                    "EventSource": "aws:sns",
-                    "EventVersion": "1.0",
-                    "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
-                    "Sns": {
-                        "Type": "Notification",
-                        "MessageId": "test-message-id",
-                        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
-                        "Subject": "Amazon S3 Notification",
-                        "Message": json.dumps(s3_event),
-                        "Timestamp": "2026-01-09T00:00:00.000Z",
-                        "SignatureVersion": "1",
-                        "Signature": "test-signature",
-                        "SigningCertURL": "test-cert-url",
-                        "UnsubscribeURL": "test-unsubscribe-url",
+                    "messageId": "test-sqs-message-id",
+                    "receiptHandle": "test-receipt-handle",
+                    "body": json.dumps(sns_message),
+                    "attributes": {
+                        "ApproximateReceiveCount": "1",
+                        "SentTimestamp": "1641686400000",
                     },
+                    "eventSource": "aws:sqs",
+                    "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:test-queue",
                 },
             ],
         }
@@ -298,26 +369,31 @@ class TestLambdaHandler:
         """Test lambda handler handles empty Records gracefully"""
         s3_client, bucket_name = s3_setup
 
-        # Create SNS event with S3 event that has no records
+        # Create SNS event with S3 event that has no records, wrapped in SQS
         s3_event = {"Records": []}
+
+        # SNS message
+        sns_message = {
+            "Type": "Notification",
+            "MessageId": "test-sns-message-id",
+            "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+            "Subject": "Amazon S3 Notification",
+            "Message": json.dumps(s3_event),
+            "Timestamp": "2026-01-09T00:00:00.000Z",
+            "SignatureVersion": "1",
+            "Signature": "test-signature",
+            "SigningCertURL": "test-cert-url",
+            "UnsubscribeURL": "test-unsubscribe-url",
+        }
+
+        # SQS event
         event = {
             "Records": [
                 {
-                    "EventSource": "aws:sns",
-                    "EventVersion": "1.0",
-                    "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
-                    "Sns": {
-                        "Type": "Notification",
-                        "MessageId": "test-message-id",
-                        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
-                        "Subject": "Amazon S3 Notification",
-                        "Message": json.dumps(s3_event),
-                        "Timestamp": "2026-01-09T00:00:00.000Z",
-                        "SignatureVersion": "1",
-                        "Signature": "test-signature",
-                        "SigningCertURL": "test-cert-url",
-                        "UnsubscribeURL": "test-unsubscribe-url",
-                    },
+                    "messageId": "test-sqs-message-id",
+                    "receiptHandle": "test-receipt-handle",
+                    "body": json.dumps(sns_message),
+                    "eventSource": "aws:sqs",
                 },
             ],
         }
@@ -336,24 +412,29 @@ class TestLambdaHandler:
 
         # Create SNS event with S3 event that has no Records key
         s3_event = {}
+
+        # SNS message
+        sns_message = {
+            "Type": "Notification",
+            "MessageId": "test-sns-message-id",
+            "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
+            "Subject": "Amazon S3 Notification",
+            "Message": json.dumps(s3_event),
+            "Timestamp": "2026-01-09T00:00:00.000Z",
+            "SignatureVersion": "1",
+            "Signature": "test-signature",
+            "SigningCertURL": "test-cert-url",
+            "UnsubscribeURL": "test-unsubscribe-url",
+        }
+
+        # SQS event
         event = {
             "Records": [
                 {
-                    "EventSource": "aws:sns",
-                    "EventVersion": "1.0",
-                    "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:test-topic:test-subscription",
-                    "Sns": {
-                        "Type": "Notification",
-                        "MessageId": "test-message-id",
-                        "TopicArn": "arn:aws:sns:us-east-1:123456789012:test-topic",
-                        "Subject": "Amazon S3 Notification",
-                        "Message": json.dumps(s3_event),
-                        "Timestamp": "2026-01-09T00:00:00.000Z",
-                        "SignatureVersion": "1",
-                        "Signature": "test-signature",
-                        "SigningCertURL": "test-cert-url",
-                        "UnsubscribeURL": "test-unsubscribe-url",
-                    },
+                    "messageId": "test-sqs-message-id",
+                    "receiptHandle": "test-receipt-handle",
+                    "body": json.dumps(sns_message),
+                    "eventSource": "aws:sqs",
                 },
             ],
         }
@@ -387,8 +468,8 @@ class TestLambdaHandler:
         response_before = s3_client.head_object(Bucket=bucket_name, Key=object_key)
         last_modified_before = response_before["LastModified"]
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
@@ -430,8 +511,8 @@ class TestLambdaHandler:
             Tagging=f"DOCUMENT_PROCESSOR_VERSION={version}",
         )
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
@@ -477,8 +558,8 @@ class TestLambdaHandler:
         response_before = s3_client.head_object(Bucket=bucket_name, Key=object_key)
         last_modified_before = response_before["LastModified"]
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         with caplog.at_level(logging.INFO):
@@ -521,8 +602,8 @@ class TestLambdaHandler:
             Tagging=f"DOCUMENT_PROCESSOR_VERSION={malformed_version}",
         )
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler - should not crash
         lambda_handler(event, {})
@@ -551,8 +632,8 @@ class TestLambdaHandler:
         """Test lambda handler skips DOCX files that contain comments"""
         s3_client, bucket_name, object_key = s3_with_docx_file_with_comments
 
-        # Create S3 event
-        event = create_s3_event(bucket_name=bucket_name, object_key=object_key)
+        # Create SQS event
+        event = create_sqs_event(bucket_name=bucket_name, object_key=object_key)
 
         # Call lambda handler
         lambda_handler(event, {})
@@ -569,3 +650,127 @@ class TestLambdaHandler:
         tag_response = s3_client.get_object_tagging(Bucket=bucket_name, Key=object_key)
         tags = {tag["Key"]: tag["Value"] for tag in tag_response.get("TagSet", [])}
         assert "DOCUMENT_PROCESSOR_VERSION" not in tags
+
+    @patch("filetype.guess")
+    @patch("lambda_function.rollbar")
+    def test_multiple_messages_partial_batch_failure(self, mock_rollbar, filetype_guess, s3_setup, input_docx):
+        """Test processing multiple SQS messages where some succeed and some fail (partial batch failure)"""
+        # Mock filetype to return DOCX mime type for the failing file
+        filetype_guess.return_value.mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        s3_client, bucket_name = s3_setup
+
+        # Create successful file
+        success_key = "success.docx"
+        s3_client.put_object(Bucket=bucket_name, Key=success_key, Body=input_docx)
+
+        # Create failing file - looks like DOCX but is corrupted
+        fail_key = "fail.docx"
+        invalid_docx = b"PK\x03\x04corrupted docx content"
+        s3_client.put_object(Bucket=bucket_name, Key=fail_key, Body=invalid_docx)
+
+        # Create event with multiple SQS messages
+        msg_id_1 = "msg-success-001"
+        msg_id_2 = "msg-fail-002"
+        msg_id_3 = "msg-success-003"
+
+        event = {
+            "Records": [
+                create_sqs_event(bucket_name, success_key, message_id=msg_id_1)["Records"][0],
+                create_sqs_event(bucket_name, fail_key, message_id=msg_id_2)["Records"][0],
+                create_sqs_event(bucket_name, success_key, message_id=msg_id_3)["Records"][0],
+            ],
+        }
+
+        # Execute
+        result = lambda_handler(event, None)
+
+        # Verify only failed message ID is returned
+        assert result == {"batchItemFailures": [{"itemIdentifier": msg_id_2}]}
+
+        # Verify rollbar was called only for the failure
+        assert mock_rollbar.report_exc_info.call_count == 1
+
+    @patch("lambda_function.rollbar")
+    def test_invalid_sqs_message_body_failure(self, mock_rollbar):
+        """Test that invalid SQS message body (unparseable JSON) is handled correctly"""
+        # Create event with invalid JSON in SQS body
+        message_id = "msg-invalid-json"
+        event = {
+            "Records": [
+                {
+                    "messageId": message_id,
+                    "body": "not valid json",  # Invalid JSON
+                    "attributes": {
+                        "ApproximateReceiveCount": "1",
+                        "SentTimestamp": "1640000000000",
+                        "SenderId": "AIDAI23HXS",
+                        "ApproximateFirstReceiveTimestamp": "1640000000000",
+                    },
+                },
+            ],
+        }
+
+        # Execute
+        result = lambda_handler(event, None)
+
+        # Verify message is marked as failed
+        assert result == {"batchItemFailures": [{"itemIdentifier": message_id}]}
+
+        # Verify rollbar was called with message_id and sqs_record
+        assert mock_rollbar.report_exc_info.called
+        call_args = mock_rollbar.report_exc_info.call_args
+        extra_data = call_args[1]["extra_data"]
+        assert extra_data["message_id"] == message_id
+        assert "sqs_record" in extra_data
+
+    @patch("lambda_function.rollbar")
+    def test_invalid_sns_message_format_failure(self, mock_rollbar):
+        """Test that invalid SNS message format is handled correctly"""
+        # Create event with valid SQS but invalid SNS message
+        message_id = "msg-invalid-sns"
+        event = {
+            "Records": [
+                {
+                    "messageId": message_id,
+                    "body": json.dumps({"Message": "not valid s3 event json"}),  # Invalid S3 event
+                    "attributes": {
+                        "ApproximateReceiveCount": "1",
+                        "SentTimestamp": "1640000000000",
+                        "SenderId": "AIDAI23HXS",
+                        "ApproximateFirstReceiveTimestamp": "1640000000000",
+                    },
+                },
+            ],
+        }
+
+        # Execute
+        result = lambda_handler(event, None)
+
+        # Verify message is marked as failed
+        assert result == {"batchItemFailures": [{"itemIdentifier": message_id}]}
+
+        # Verify rollbar was called
+        assert mock_rollbar.report_exc_info.called
+
+    @patch("filetype.guess")
+    @patch("lambda_function.rollbar")
+    def test_duplicate_message_id_not_added_twice(self, mock_rollbar, filetype_guess, s3_setup):
+        """Test that failed message ID is not duplicated when inner exception is re-raised"""
+        # Mock filetype to return DOCX mime type so file is recognized
+        filetype_guess.return_value.mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        s3_client, bucket_name = s3_setup
+        object_key = "fail.docx"
+        # Use invalid content that will be recognized as DOCX but fail during processing
+        s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=b"PK\x03\x04invalid docx")
+
+        message_id = "msg-duplicate-test"
+        event = create_sqs_event(bucket_name, object_key, message_id=message_id)
+
+        # Execute
+        result = lambda_handler(event, None)
+
+        # Verify message ID appears only once
+        assert result == {"batchItemFailures": [{"itemIdentifier": message_id}]}
+        assert len(result["batchItemFailures"]) == 1
