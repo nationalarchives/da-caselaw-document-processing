@@ -55,14 +55,14 @@ RUN pdfcpu version
 
 
 # Install LibreOffice headless
-RUN wget https://download.documentfoundation.org/libreoffice/stable/25.8.4/rpm/x86_64/LibreOffice_25.8.4_Linux_x86-64_rpm.tar.gz
+RUN wget https://downloadarchive.documentfoundation.org/libreoffice/old/25.8.4.2/rpm/x86_64/LibreOffice_25.8.4.2_Linux_x86-64_rpm.tar.gz -O libreoffice.tar.gz
 
-RUN tar -xzf LibreOffice_25.8.4_Linux_x86-64_rpm.tar.gz && \
-    cd LibreOffice_25.8.4.2_Linux_x86-64_rpm/  && \
+RUN tar -xzf libreoffice.tar.gz && \
+    cd LibreOffice_*/  && \
     cd RPMS/ && \
     rpm -Uvh *.rpm && \
     cd ../.. && \
-    rm -rf LibreOffice_25.8.4.2_Linux_x86-64_rpm LibreOffice_25.8.4_Linux_x86-64_rpm.tar.gz
+    rm -rf LibreOffice_* libreoffice.tar.gz
 
 RUN export LD_LIBRARY_PATH=:/usr/lib/libreoffice25.8/program
 RUN ln -sf /opt/libreoffice25.8/program/soffice /usr/bin/soffice
