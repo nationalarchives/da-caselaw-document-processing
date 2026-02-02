@@ -651,7 +651,7 @@ module "document_processing_queue" {
   dlq_alarm_threshold    = 1 # Alert immediately when any message hits DLQ
   dlq_evaluation_periods = 1
 
-  common_tags = merge(local.common_tags, {
+  tags = merge(local.common_tags, {
     Purpose = "Lambda message buffering with retry and DLQ"
   })
 }
