@@ -628,9 +628,6 @@ module "document_processing_queue" {
   # Message Retention - keep messages for 4 days in main queue
   message_retention_seconds = 345600 # 4 days
 
-  # DLQ Retention - keep failed messages for 14 days for investigation
-  dlq_message_retention_seconds = 1209600 # 14 days
-
   # Encryption using the same KMS key as SNS
   encryption_type = "kms"
   kms_key_id      = aws_kms_key.sns_topic.id
@@ -639,28 +636,18 @@ module "document_processing_queue" {
   receive_wait_time_seconds = 20
 
   # CloudWatch Alarms for queue monitoring
-  alarm_name_prefix    = "document-processing"
-  alarm_sns_topic_arns = [] # TODO: Add SNS topic for alarms if needed
+  # Alert if > 10 messages are visible in the main queue
+  queue_cloudwatch_alarm_visible_messages_threshold = 10
 
-  # Monitor when messages are in the queue for too long
-  create_delayed_message_alert = true
-  delayed_message_threshold    = 10 # Alert if > 10 messages delayed
+  # Alert immediately when any message hits DLQ
+  dlq_cloudwatch_alarm_visible_messages_threshold = 1
 
-  # Monitor DLQ for failed messages
-  create_dlq_alert       = true
-  dlq_alarm_threshold    = 1 # Alert immediately when any message hits DLQ
-  dlq_evaluation_periods = 1
+  # TODO: Add SNS topic ARNs for alarm notifications if needed
+  # dlq_notification_topic = "arn:aws:sns:..."
+  # queue_visibility_alarm_notification_topic = "arn:aws:sns:..."
 
-  common_tags = merge(local.common_tags, {
-    Purpose = "Lambda message buffering with retry and DLQ"
-  })
-}
-
-# SQS Queue Policy - allow SNS topic to send messages + enforce encryption in transit
-resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
-  queue_url = module.document_processing_queue.sqs_url
-
-  policy = jsonencode({
+  # SQS Policy - allow SNS topic to send messages + enforce encryption in transit
+  sqs_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
@@ -670,7 +657,7 @@ resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
           Service = "sns.amazonaws.com"
         }
         Action   = "sqs:SendMessage"
-        Resource = module.document_processing_queue.sqs_arn
+        Resource = "*"
         Condition = {
           ArnEquals = {
             "aws:SourceArn" = aws_sns_topic.s3_document_events.arn
@@ -684,7 +671,7 @@ resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
           AWS = "*"
         }
         Action   = "sqs:*"
-        Resource = module.document_processing_queue.sqs_arn
+        Resource = "*"
         Condition = {
           Bool = {
             "aws:SecureTransport" = "false"
@@ -692,6 +679,10 @@ resource "aws_sqs_queue_policy" "document_queue_sns_policy" {
         }
       }
     ]
+  })
+
+  tags = merge(local.common_tags, {
+    Purpose = "Lambda message buffering with retry and DLQ"
   })
 }
 
@@ -706,10 +697,6 @@ resource "aws_sns_topic_subscription" "document_queue_subscription" {
   protocol             = "sqs"
   endpoint             = module.document_processing_queue.sqs_arn
   raw_message_delivery = false # Keep SNS envelope for debugging
-
-  depends_on = [
-    aws_sqs_queue_policy.document_queue_sns_policy
-  ]
 }
 
 # Lambda Permission - allow SQS to invoke Lambda (replaces SNS permission)
@@ -981,7 +968,7 @@ output "sns_sqs_kms_key_id" {
 # SQS Queue outputs for monitoring and debugging
 output "document_processing_queue_url" {
   description = "URL of the document processing SQS queue"
-  value       = module.document_processing_queue.sqs_url
+  value       = module.document_processing_queue.sqs_queue_url
 }
 
 output "document_processing_queue_arn" {
