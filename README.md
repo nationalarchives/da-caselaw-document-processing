@@ -114,17 +114,47 @@ See `main.tf` for all outputs, including Lambda ARNs, security group IDs, subnet
 
 #### Architecture
 
-The infrastructure uses an SNS topic as an intermediary between S3 bucket notifications and downstream consumers:
+The infrastructure uses an SNS topic as an intermediary between S3 bucket notifications and downstream consumers, with SQS queue buffering for the Lambda:
 
 ```
 S3 Bucket (Object Created)
     ↓
 SNS Topic (document-processing-s3-events)
-    ├→ Lambda Function (document cleanser)
+    ├→ SQS Queue (document-processing-lambda-queue)
+    │   ├→ Lambda Function (document cleanser)
+    │   └→ DLQ (document-processing-lambda-queue-dlq) [after 3 failed retries]
     └→ SQS Queue (PDF generation - raw message delivery)
 ```
 
-This fan-out pattern enables S3 events to be delivered to multiple subscribers simultaneously. The SQS subscription uses raw message delivery to preserve the original S3 event format, requiring no changes to the ECS task event parsing logic.
+This architecture provides resilience against Lambda downtime:
+
+- **Message buffering**: SQS queue holds messages if Lambda is unavailable (e.g., ECR image issues)
+- **Automatic retries**: Failed messages are retried up to 3 times with exponential backoff
+- **Dead Letter Queue (DLQ)**: Messages that fail all retries are moved to the DLQ for investigation
+- **No message loss**: S3 events are preserved during Lambda failures or deployment issues
+- **Fan-out pattern**: SNS enables multiple subscribers to receive the same S3 events
+
+#### Operations
+
+##### Monitoring and handling Failed Messages
+
+To address failed messages, we can:
+
+1. view the failed messages that end up in the queue
+2. analyse why they failed to be processed successfully by looking at logs
+3. fix the underlying issue
+4. attempt to redrive the messages back into the main queue to be processed
+
+For details on how to do this in the console or aws cli, see: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html
+
+##### CloudWatch Alarms
+
+The infrastructure includes CloudWatch alarms for:
+
+- **Main queue**: Alerts when >10 messages are visible (potential processing backlog)
+- **DLQ**: Alerts immediately when any message enters the DLQ (processing failure)
+
+Note: there is no subscriber to these alert events yet. For automatic monitoring, we should add this.
 
 #### Notes
 
