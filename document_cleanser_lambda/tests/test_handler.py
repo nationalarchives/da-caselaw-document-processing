@@ -96,6 +96,7 @@ class TestLambdaHandler:
         processed_content = processed_response["Body"].read()
         assert processed_content != input_docx
         assert len(processed_content) > 0
+        assert processed_response["ContentType"] == "binary/octet-stream"
 
     def test_lambda_handler_processes_jpeg_files(self, s3_with_jpeg_file, input_jpeg):
         """Test lambda handler processes files without a version tag"""
@@ -112,6 +113,7 @@ class TestLambdaHandler:
         processed_content = processed_response["Body"].read()
         assert processed_content != input_jpeg
         assert len(processed_content) > 0
+        assert processed_response["ContentType"] == "image/jpeg"
 
     def test_lambda_handler_processes_png_files(self, s3_with_png_file, input_png):
         """Test lambda handler processes files without a version tag"""
@@ -128,6 +130,7 @@ class TestLambdaHandler:
         processed_content = processed_response["Body"].read()
         assert processed_content != input_png
         assert len(processed_content) > 0
+        assert processed_response["ContentType"] == "image/png"
 
     def test_lambda_handler_processes_pdf_files_without_version_tag(
         self,
@@ -150,6 +153,7 @@ class TestLambdaHandler:
         processed_content = processed_response["Body"].read()
         assert processed_content != input_multipage_pdf
         assert len(processed_content) > 0
+        assert processed_response["ContentType"] == "application/pdf"
 
     @patch("lambda_function.rollbar")
     @patch("exceptions.VisuallyDifferentError")
