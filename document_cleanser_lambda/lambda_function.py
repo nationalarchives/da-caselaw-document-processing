@@ -20,8 +20,9 @@ load_dotenv()
 __version__ = "1.0.0"
 rollbar.init(os.getenv("ROLLBAR_TOKEN", ""), environment=os.getenv("ROLLBAR_ENV", "unknown"), code_version=__version__)
 
+DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 MODULE_FOR_MIME_TYPE = {
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": clean_docx,
+    DOCX_MIME_TYPE: clean_docx,
     "image/png": clean_png,
     "image/jpeg": clean_jpeg,
     "application/pdf": clean_pdf,
@@ -63,6 +64,14 @@ def handle_one_record(record, s3, logger) -> None:
     file_content = response["Body"].read()
 
     content_type = utils.mimetype(file_content)
+
+    # If a document is served from S3 with the correct DOCX mime type via a signed URL,
+    # by default Edge will attempt and fail to open it in its online service
+    # (Office365/Copilot) claiming a network error. We avoid this by explicitly saving
+    # the DOCX file with a mimetype declaring "this is just an opaque stream of bytes."
+
+    s3_content_type = "binary/octet-stream" if content_type == DOCX_MIME_TYPE else content_type
+
     clean_module = MODULE_FOR_MIME_TYPE.get(content_type)
     if not clean_module:
         logger.warning(
@@ -80,7 +89,7 @@ def handle_one_record(record, s3, logger) -> None:
         Bucket=bucket_name,
         Key=object_key,
         Body=output_bytes,
-        ContentType=content_type,
+        ContentType=s3_content_type,
         Tagging=f"DOCUMENT_PROCESSOR_VERSION={document_processor_version}",
     )
 
