@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 It is part of the [TRE template repository](https://github.com/nationalarchives/da-tre-template)
 
+## [1.1.0] - 2026-01-23
+
+### Added
+
+- Added SQS and DLQ buffering layer for message processing resilience
+
+### Fixed
+
+- Set mimetype of docx files to "binary/octet-stream" like the original files to ensure backwards compatability with browser file download behaviour in the Microsoft Edge browser (Edge attempts to preview Word Documents in browser so we avoid that)
+
 ## [1.0.0] - 2026-01-23
 
 ### Added
@@ -17,7 +27,7 @@ It is part of the [TRE template repository](https://github.com/nationalarchives/
 - PDF rendering and cleaning capabilities with annotation and metadata removal
 - Image metadata cleaning for PNG and JPEG files with ICC profile preservation
 
-## [0.0.1] - 2023-01-31
+## [0.0.1] - 2025-11-31
 
 ### Added
 

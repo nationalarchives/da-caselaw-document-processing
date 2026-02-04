@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lambda-strip-docx"
-version = "1.0.0"
+version = "1.1.0"
 description = "AWS Lambda function for cleaning DOCX and PDF documents"
 authors = ["The National Archives <digitalrecords@nationalarchives.gov.uk>"]
 readme = "README.md"
