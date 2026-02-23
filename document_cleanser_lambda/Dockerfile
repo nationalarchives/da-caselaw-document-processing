@@ -12,21 +12,21 @@ RUN microdnf update -y && \
         gzip-1.12-1.amzn2023.0.1 \
         wget-1.21.3-1.amzn2023.0.4 \
         # Dependencies needed for LibreOffice
-        libXinerama \
-        cups-libs \
-        dbus-glib \
-        libxslt \
-        openssl \
-        nss \
-        cairo \
-        libX11-xcb \
+        libXinerama-1.1.5-6.amzn2023.0.1 \
+        cups-libs-2.4.14-1.amzn2023.0.2 \
+        dbus-glib-0.110-11.amzn2023.0.2 \
+        libxslt-1.1.43-1.amzn2023.0.3 \
+        openssl-3.2.2-1.amzn2023.0.4 \
+        nss-3.90.0-6.amzn2023.0.1 \
+        cairo-1.18.0-4.amzn2023.0.2 \
+        libX11-xcb-1.8.10-2.amzn2023.0.1 \
         # Dependencies needed for ExifTool
         perl-4:5.32.1-477.amzn2023.0.7 \
         make-1:4.3-5.amzn2023.0.2 \
         # Dependencies needed for pdfcpu
-        golang-1.24.7-1.amzn2023.0.1 \
+        golang-1.24.9-1.amzn2023.0.1 \
         # QPDF for PDF processing
-        qpdf-10.6.3-4.amzn2023.0.4 \
+        qpdf-10.6.3-4.amzn2023.0.5 \
         && \
     microdnf clean all
 
