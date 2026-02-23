@@ -1,32 +1,31 @@
 # Base stage - common setup
-FROM public.ecr.aws/lambda/python:3.14@sha256:5ec375e564d79e5d5d18cc8167d9ee9a7a67c931210ed95c508e3be4fcc847ca AS base
+FROM public.ecr.aws/lambda/python:3.14@sha256:c7fd51ccbd7d39b3df8899d6ec3af97c62e1cc46f05f78fda903f7e1451721cf AS base
 
 # Set HOME to /tmp to avoid permission issues during builds
 ENV HOME=/tmp
 
 # Install system dependencies for PDF processing tests
-RUN microdnf update -y && \
-    microdnf install -y \
+RUN microdnf install -y \
         # Utility dependencies needed for installing dependencies
         tar-2:1.34-1.amzn2023.0.4 \
         gzip-1.12-1.amzn2023.0.1 \
         wget-1.21.3-1.amzn2023.0.4 \
         # Dependencies needed for LibreOffice
-        libXinerama \
-        cups-libs \
-        dbus-glib \
-        libxslt \
-        openssl \
-        nss \
-        cairo \
-        libX11-xcb \
+        libXinerama-1.1.5-6.amzn2023.0.1 \
+        cups-libs-2.4.14-1.amzn2023.0.2 \
+        dbus-glib-0.110-11.amzn2023.0.2 \
+        libxslt-1.1.43-1.amzn2023.0.3 \
+        openssl-3.2.2-1.amzn2023.0.4 \
+        nss-3.90.0-6.amzn2023.0.1 \
+        cairo-1.18.0-4.amzn2023.0.2 \
+        libX11-xcb-1.8.10-2.amzn2023.0.1 \
         # Dependencies needed for ExifTool
         perl-4:5.32.1-477.amzn2023.0.7 \
         make-1:4.3-5.amzn2023.0.2 \
         # Dependencies needed for pdfcpu
-        golang-1.24.7-1.amzn2023.0.1 \
+        golang-1.24.9-1.amzn2023.0.1 \
         # QPDF for PDF processing
-        qpdf-10.6.3-4.amzn2023.0.4 \
+        qpdf-10.6.3-4.amzn2023.0.5 \
         && \
     microdnf clean all
 
