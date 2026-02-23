@@ -5,8 +5,7 @@ FROM public.ecr.aws/lambda/python:3.14@sha256:c7fd51ccbd7d39b3df8899d6ec3af97c62
 ENV HOME=/tmp
 
 # Install system dependencies for PDF processing tests
-RUN microdnf update -y && \
-    microdnf install -y \
+RUN microdnf install -y \
         # Utility dependencies needed for installing dependencies
         tar-2:1.34-1.amzn2023.0.4 \
         gzip-1.12-1.amzn2023.0.1 \
