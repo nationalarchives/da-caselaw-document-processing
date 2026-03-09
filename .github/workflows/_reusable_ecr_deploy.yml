@@ -151,4 +151,6 @@ jobs:
         run: |
           aws lambda update-function-code \
             --function-name $LAMBDA_FUNCTION_NAME \
-            --image-uri $ECR_IMAGE_URI
+            --image-uri $ECR_IMAGE_URI \
+            --output text \
+            --query 'FunctionName'
