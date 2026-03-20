@@ -42,12 +42,12 @@ jobs:
           rm tflint.zip
           sudo mv tflint /usr/bin/
 
-      - name: Install trivy for pre-commit
-        run: |
-          curl -L "$(curl -s https://api.github.com/repos/aquasecurity/trivy/releases/tags/v0.69.2 | grep -o -E -i -m 1 "https://.+?/trivy_.+?_Linux-64bit.tar.gz")" > trivy.tar.gz
-          tar -xzf trivy.tar.gz trivy
-          rm trivy.tar.gz
-          sudo mv trivy /usr/bin/
+      # - name: Install trivy for pre-commit
+      #   run: |
+      #     curl -L "$(curl -s https://api.github.com/repos/aquasecurity/trivy/releases/tags/v0.69.2 | grep -o -E -i -m 1 "https://.+?/trivy_.+?_Linux-64bit.tar.gz")" > trivy.tar.gz
+      #     tar -xzf trivy.tar.gz trivy
+      #     rm trivy.tar.gz
+      #     sudo mv trivy /usr/bin/
 
       - name: Run pre-commit checks
         run: pre-commit run --all-files
