@@ -1,36 +1,24 @@
 import hashlib
-from pathlib import Path
+import io
 
-import pymupdf
-
-DEBUG_IMG_DIR = "debug-images"
+from pdf2image import convert_from_bytes
 
 
-def ppm_list(image_bytes):
-    """The PPM format is very simple, just a header and pixel data.
-    Two identical images should have the same PPM output, unlike other more complicated formats"""
-    doc = pymupdf.Document(stream=image_bytes)
-    return [page.get_pixmap().tobytes("ppm") for page in doc]
+def hash_pdf_visually(pdf_bytes: bytes) -> str:
+    """Hash the visual appearance of a PDF by rendering each page and hashing the images.
+
+    Uses streaming approach to process pages one at a time, keeping memory usage constant
+    regardless of document size. The PPM format is used because it's simple (just header + pixel data)
+    and produces consistent output for identical images.
+    """
+    hasher = hashlib.sha256()
+    for page in convert_from_bytes(pdf_bytes, fmt="ppm"):
+        buffer = io.BytesIO()
+        page.save(buffer, format="PPM")
+        hasher.update(buffer.getvalue())
+    return hasher.hexdigest()
 
 
-def save_pngs(image_bytes) -> None:
-    """Save PNGs for debugging purposes"""
-    doc = pymupdf.Document(stream=image_bytes)
-    for i, page in enumerate(doc):
-        Path(DEBUG_IMG_DIR).mkdir()
-        with Path(f"{DEBUG_IMG_DIR}/{i}.png").open("wb") as f:
-            f.write(page.get_pixmap().tobytes("png"))
-
-
-def hash_pdf_image(image_bytes) -> str:
-    """Hash the PPM image of each page together, to provide a hash which should tell us if the image has changed."""
-    pages = ppm_list(image_bytes)
-    m = hashlib.sha256()
-    for page in pages:
-        m.update(page)
-    return m.hexdigest()
-
-
-def visually_identical(first_content, second_content) -> bool:
-    """Are these two PDFs visually identical?"""
-    return hash_pdf_image(first_content) == hash_pdf_image(second_content)
+def visually_identical(first_content: bytes, second_content: bytes) -> bool:
+    """Check if two PDFs are visually identical by comparing their rendered appearance."""
+    return hash_pdf_visually(first_content) == hash_pdf_visually(second_content)
