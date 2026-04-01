@@ -10,6 +10,8 @@ RUN microdnf install -y \
         tar-2:1.34-1.amzn2023.0.4 \
         gzip-1.12-1.amzn2023.0.1 \
         wget-1.21.3-1.amzn2023.0.4 \
+        # Poppler utils for pdf2image
+        poppler-utils-22.08.0-3.amzn2023.0.1 \
         # Dependencies needed for LibreOffice
         libXinerama-1.1.5-6.amzn2023.0.1 \
         cups-libs-2.4.14-1.amzn2023.0.2 \
