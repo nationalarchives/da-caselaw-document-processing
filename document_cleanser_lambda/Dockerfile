@@ -1,6 +1,9 @@
 # Base stage - common setup
 FROM public.ecr.aws/lambda/python:3.14@sha256:3550baf11e94cb808d86f322e7b262f7cb9c218fd45ab1eb104c023dec358338 AS base
 
+# get arm64 -> aarch64 / amd64 -> x86_64 for LibreOffice download path
+ARG TARGETARCH
+
 # Set HOME to /tmp to avoid permission issues during builds
 ENV HOME=/tmp
 
@@ -55,8 +58,13 @@ RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
 RUN pdfcpu version
 
 
+
+
 # Install LibreOffice headless
-RUN wget https://downloadarchive.documentfoundation.org/libreoffice/old/25.8.4.2/rpm/x86_64/LibreOffice_25.8.4.2_Linux_x86-64_rpm.tar.gz -O libreoffice.tar.gz
+
+RUN ARCH=$(echo "$TARGETARCH" | sed s/^arm64$/aarch64/ | sed s/^amd64$/x86_64/) && \
+    echo "ARCH=$ARCH" && \
+    wget https://downloadarchive.documentfoundation.org/libreoffice/old/25.8.4.2/rpm/$ARCH/LibreOffice_25.8.4.2_Linux_$ARCH_rpm.tar.gz -O libreoffice.tar.gz
 
 RUN tar -xzf libreoffice.tar.gz && \
     cd LibreOffice_*/  && \
