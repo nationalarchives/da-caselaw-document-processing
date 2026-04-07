@@ -4,7 +4,7 @@ AWS Lambda function for document processing (privacy, metadata stripping, etc.).
 
 ## Local Development and Testing
 
-#### 1. Run Tests in Docker container (matches CI/CD)
+### 1. Run Tests in Docker container (matches CI/CD)
 
 ```sh
 # From project root
@@ -13,7 +13,7 @@ AWS Lambda function for document processing (privacy, metadata stripping, etc.).
 
 This builds the test Docker image with all required system dependencies (including pdfcpu for PDF processing) and runs the complete test suite in the same environment used in CI/CD, ensuring consistency between local development and deployment.
 
-#### 2. Test Lambda Locally
+### 2. Test Lambda Locally
 
 You can test the Lambda locally using Docker:
 
@@ -28,7 +28,7 @@ curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations
 
 `test-event.json` should be a valid Lambda event payload for your handler (see AWS docs for examples).
 
-#### 3. Linting and Pre-commit
+### 3. Linting and Pre-commit
 
 Install and run pre-commit hooks to ensure code quality:
 
@@ -38,22 +38,23 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-#### 4. Making Changes & Pull Requests
+### 4. Updating dependencies with poetry
 
-- Ensure all tests pass locally before opening a PR.
-- Follow repo and code style guidelines.
-- Document any new environment variables or requirements in the README.
+Dependencies should be managed by renovate (see [renovate.json](renovate.json)).
+If you need to update dependencies, run `poetry update`; see [pyproject.toml](document_cleanser_lambda/pyproject.toml)
 
-#### 5. Development Guidelines
+### 5. Development Guidelines
 
-- If you need to update dependencies, run `poetry update`; see [pyproject.toml](pyproject.toml)
-- Ensure all tests pass locally before opening a PR via `./run-tests.sh`
-- Follow repo and code style guidelines.
-- Document any new environment variables or requirements in the README.
+Ensure all tests pass locally before opening a PR via `./run-tests.sh`
+
+Follow repo and code style guidelines.
+
+Document new environment variables or requirements in the README.
 
 ## Deployment
 
 [Terraform configuration](docs/terraform.md)
+
 [Detailed CI documentation](docs/ci.md)
 
 - Changes to the `main` branch are deployed to staging.
