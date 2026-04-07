@@ -18,15 +18,18 @@ This builds the test Docker image with all required system dependencies (includi
 You can test the Lambda locally using Docker:
 
 ```sh
-docker build -t docx-lambda-test -f **document_cleanser_lambda**/Dockerfile document_cleanser_lambda/
-docker run -d --name docx-lambda-test -p 9000:8080 docx-lambda-test
-sleep 10
-curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
-	-H "Content-Type: application/json" \
-	--data-binary @test-event.json > response.json
+script/server
 ```
 
-`test-event.json` should be a valid Lambda event payload for your handler (see AWS docs for examples).
+will start the server and
+
+```
+script/upload document_cleanser_lambda/test-event.json
+```
+
+will submit a valid Lambda event payload to your handler (see AWS docs for examples).
+
+Output will be at the same filename with `.output.json` appended.
 
 ### 3. Linting and Pre-commit
 
