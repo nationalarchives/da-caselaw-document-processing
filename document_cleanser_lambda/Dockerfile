@@ -4,6 +4,8 @@ FROM public.ecr.aws/lambda/python:3.14@sha256:3550baf11e94cb808d86f322e7b262f7cb
 # get arm64 -> aarch64 / amd64 -> x86_64 for LibreOffice download path
 ARG TARGETARCH
 
+ENV LIBREOFFICE=26.2.2.2
+ENV LIBREOFFICE_MAJOR=26.2
 # Set HOME to /tmp to avoid permission issues during builds
 ENV HOME=/tmp
 
@@ -57,14 +59,8 @@ RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
 # Verify pdfcpu installation
 RUN pdfcpu version
 
-
-
-
 # Install LibreOffice headless
-
-RUN ARCH=$(echo "$TARGETARCH" | sed s/^arm64$/aarch64/ | sed s/^amd64$/x86_64/) && \
-    echo "ARCH=$ARCH" && \
-    wget https://downloadarchive.documentfoundation.org/libreoffice/old/25.8.4.2/rpm/$ARCH/LibreOffice_25.8.4.2_Linux_$ARCH_rpm.tar.gz -O libreoffice.tar.gz
+RUN ARCH=$(echo "${TARGETARCH}" | sed s/^arm64$/aarch64/ | sed s/^amd64$/x86_64/) ARCHHYPHEN=$(echo "${TARGETARCH}" | sed s/^arm64$/aarch64/ | sed s/^amd64$/x86-64/) sh -c "wget -v https://downloadarchive.documentfoundation.org/libreoffice/old/\${LIBREOFFICE}/rpm/\${ARCH}/LibreOffice_\${LIBREOFFICE}_Linux_\${ARCHHYPHEN}_rpm.tar.gz -O libreoffice.tar.gz"
 
 RUN tar -xzf libreoffice.tar.gz && \
     cd LibreOffice_*/  && \
@@ -73,8 +69,8 @@ RUN tar -xzf libreoffice.tar.gz && \
     cd ../.. && \
     rm -rf LibreOffice_* libreoffice.tar.gz
 
-RUN export LD_LIBRARY_PATH=:/usr/lib/libreoffice25.8/program
-RUN ln -sf /opt/libreoffice25.8/program/soffice /usr/bin/soffice
+RUN export LD_LIBRARY_PATH=:/usr/lib/libreoffice${LIBREOFFICE_MAJOR}/program
+RUN ln -sf /opt/libreoffice${LIBREOFFICE_MAJOR}/program/soffice /usr/bin/soffice
 
 # Verify LibreOffice installation
 RUN /usr/bin/soffice --version
