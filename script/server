@@ -1,0 +1,3 @@
+set -e
+docker build -t docx-lambda-test -f **document_cleanser_lambda**/Dockerfile document_cleanser_lambda/
+docker run -d --name docx-lambda-test -p 9000:8080 docx-lambda-test
