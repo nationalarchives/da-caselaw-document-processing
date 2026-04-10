@@ -1,5 +1,5 @@
 # Base stage - common setup
-FROM public.ecr.aws/lambda/python:3.14@sha256:3550baf11e94cb808d86f322e7b262f7cb9c218fd45ab1eb104c023dec358338 AS base
+FROM public.ecr.aws/lambda/python:3.14@sha256:a46c80668dafa9e49f848eb153fd0d5f6df7db8dc24c49d9c446e712df554757 AS base
 
 # get arm64 -> aarch64 / amd64 -> x86_64 for LibreOffice download path
 ARG TARGETARCH
