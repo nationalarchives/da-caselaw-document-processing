@@ -3,5 +3,16 @@
   "extends": ["github>nationalarchives/ds-find-caselaw-docs"],
   "pip_requirements": {
     "managerFilePatterns": ["/requirements/.*\\.txt/"]
-  }
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/.github/workflows/**"],
+      "matchStrings": [
+        "uses:\\s+terraform-linters/setup-tflint@.+\\n\\s+with:\\n(?:\\s+.+\\n)*?\\s+tflint_version:\\s+v?(?<currentValue>[^\\s]+)"
+      ],
+      "depNameTemplate": "terraform-linters/tflint",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
 }
