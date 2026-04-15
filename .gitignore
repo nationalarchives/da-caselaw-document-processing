@@ -93,3 +93,5 @@ override.tf.json
 # other
 .aws-sam
 .env
+
+*.output.json
