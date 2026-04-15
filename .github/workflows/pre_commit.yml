@@ -35,19 +35,11 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Install tflint for pre-commit
-        run: |
-          curl -L "$(curl -s https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E -m 1 "https://.+?_linux_amd64.zip")" > tflint.zip
-          unzip tflint.zip
-          rm tflint.zip
-          sudo mv tflint /usr/bin/
-
-      # - name: Install trivy for pre-commit
-      #   run: |
-      #     curl -L "$(curl -s https://api.github.com/repos/aquasecurity/trivy/releases/tags/v0.69.2 | grep -o -E -i -m 1 "https://.+?/trivy_.+?_Linux-64bit.tar.gz")" > trivy.tar.gz
-      #     tar -xzf trivy.tar.gz trivy
-      #     rm trivy.tar.gz
-      #     sudo mv trivy /usr/bin/
+      - uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93 # v6.2.2
+        with:
+          tflint_version: v0.61.0
+          cache: true
+          checksum: 9cd3106c7b74f83cbcd90e0593dfaa1ce14dc5260fe32d946915fd0004aec2f4 # pragma: allowlist secret
 
       - name: Run pre-commit checks
         run: pre-commit run --all-files
