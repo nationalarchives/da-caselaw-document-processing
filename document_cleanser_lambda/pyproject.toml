@@ -10,7 +10,7 @@ packages = [{include = "document_cleanser_lambda", from = "."}]
 python = "^3.13"
 lxml = "6.1.0"
 rollbar = "^1.3.0"
-boto3 = "1.42.94"
+boto3 = "1.42.95"
 pdf2image = "^1.17.0"
 Pillow = "^12.0.0"
 filetype = "^1.2.0"
