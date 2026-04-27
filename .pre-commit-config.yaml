@@ -67,4 +67,4 @@ repos:
     hooks:
       - id: renovate-config-validator
         args: [--strict]
-        files: renovate.json
+        files: ^renovate\.json$
