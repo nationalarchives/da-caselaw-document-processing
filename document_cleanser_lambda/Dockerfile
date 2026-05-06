@@ -22,7 +22,7 @@ RUN microdnf install -y \
         cups-libs-2.4.14-1.amzn2023.0.2 \
         dbus-glib-0.110-11.amzn2023.0.2 \
         libxslt-1.1.43-1.amzn2023.0.3 \
-        openssl-3.2.2-1.amzn2023.0.4 \
+        openssl \
         nss-3.90.0-6.amzn2023.0.1 \
         cairo-1.18.0-4.amzn2023.0.2 \
         libX11-xcb-1.8.10-2.amzn2023.0.1 \
