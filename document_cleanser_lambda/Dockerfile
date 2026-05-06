@@ -1,5 +1,5 @@
 # Base stage - common setup
-FROM public.ecr.aws/lambda/python:3.14@sha256:81ce43dd5c4ff7918bb3c9ecf36ac9e5edeed2a986c36f6d4f57f0ffd04edcd5 AS base
+FROM public.ecr.aws/lambda/python:3.14@sha256:0c835d3c9914f58235f5e06d57518da4e93352be1969f4f2b28718a08b7a2745 AS base
 
 # get arm64 -> aarch64 / amd64 -> x86_64 for LibreOffice download path
 ARG TARGETARCH
@@ -22,7 +22,7 @@ RUN microdnf install -y \
         cups-libs-2.4.14-1.amzn2023.0.2 \
         dbus-glib-0.110-11.amzn2023.0.2 \
         libxslt-1.1.43-1.amzn2023.0.3 \
-        openssl-3.2.2-1.amzn2023.0.4 \
+        openssl \
         nss-3.90.0-6.amzn2023.0.1 \
         cairo-1.18.0-4.amzn2023.0.2 \
         libX11-xcb-1.8.10-2.amzn2023.0.1 \
