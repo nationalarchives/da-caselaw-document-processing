@@ -30,7 +30,7 @@ RUN microdnf install -y \
         perl-4:5.32.1-477.amzn2023.0.7 \
         make-1:4.3-5.amzn2023.0.2 \
         # Dependencies needed for pdfcpu
-        golang-1.24.9-1.amzn2023.0.1 \
+        golang-1.25.8-1.amzn2023.0.1 \
         # QPDF for PDF processing
         qpdf-10.6.3-4.amzn2023.0.5 \
         && \
@@ -50,7 +50,7 @@ RUN wget https://github.com/exiftool/exiftool/archive/refs/tags/13.38.tar.gz && 
 RUN exiftool -ver
 
 # Install pdfcpu to /usr/local/bin (accessible by Lambda runtime user)
-RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.11.1 && \
+RUN go install github.com/pdfcpu/pdfcpu/cmd/pdfcpu@v0.13.0 && \
     cp /tmp/go/bin/pdfcpu /usr/local/bin/ && \
     chmod 755 /usr/local/bin/pdfcpu && \
     rm -rf /root/go && \
