@@ -17,22 +17,38 @@ def _qdf(filename: str) -> None:
 
 
 def _remove_annotations(filename: str) -> None:
-    subprocess.run([PDFCPU, "annot", "remove", filename], check=False, timeout=10, stdout=PIPE, stderr=STDOUT)
+    subprocess.run([PDFCPU, "annotations", "remove", filename], check=False, timeout=10, stdout=PIPE, stderr=STDOUT)
 
 
 def _remove_properties(filename: str) -> None:
     # Removing all the properties [nothing specified] does not appear to remove the predefined ones, like Author.
-    subprocess.run([PDFCPU, "prop", "remove", filename], timeout=10, check=True)
+    result = subprocess.run(
+        [PDFCPU, "properties", "remove", filename],
+        timeout=10,
+        check=False,
+        stdout=PIPE,
+        stderr=STDOUT,
+    )
+    # pdfcpu exits non-zero with "no property removed" when there are no custom properties to strip.
+    # That is not an error for our purposes, so only raise on any other failure.
+    if result.returncode != 0 and b"no property removed" not in result.stdout:
+        raise subprocess.CalledProcessError(result.returncode, result.args, output=result.stdout)
+
+    # Ensure predefined properties exist as pdfcpu exits non-zero otherwise.
+    # pdfcpu rejects empty values, so set placeholders that are removed immediately below.
     subprocess.run(
-        [PDFCPU, "prop", "add", filename, "Author=", "Subject=", "Title="],
+        [PDFCPU, "properties", "add", filename, "Author=Placeholder", "Subject=Placeholder", "Title=Placeholder"],
         timeout=10,
         check=True,
     )
-    subprocess.run(
-        [PDFCPU, "prop", "remove", filename, "Author", "Subject", "Title"],
-        timeout=10,
-        check=True,
-    )
+
+    # pdfcpu only removes the first named property per 'properties remove' call, so remove them individually.
+    for name in ("Author", "Subject", "Title"):
+        subprocess.run(
+            [PDFCPU, "properties", "remove", filename, name],
+            timeout=10,
+            check=True,
+        )
 
 
 def _info(filename: str) -> bytes:
