@@ -393,7 +393,7 @@ module "document_cleanser_lambda" {
   use_image = true
   image_url = "${module.document_cleanser_ecr.repository_url}:${var.ECR_IMAGE_TAG}"
 
-  memory_size     = 512
+  memory_size     = 10240
   timeout_seconds = 300
 
   # VPC Configuration for network isolation
