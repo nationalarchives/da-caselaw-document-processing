@@ -14,5 +14,6 @@
       "depNameTemplate": "terraform-linters/tflint",
       "datasourceTemplate": "github-releases"
     }
-  ]
+  ],
+  "addLabels": ["no-changelog"]
 }

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 It is part of the [TRE template repository](https://github.com/nationalarchives/da-tre-template)
 
+## [1.1.2] - 2026-06-26
+
+### Added
+
+- Improved documentation for deployment
+
+### Changed
+
+- Upgrade pdfcpu to version 0.13.0
+- Increase Lambda memory size to 10240MB
+- Renovate tweaks
+
+## [1.1.1] - 2026-04-08
+
+### Changed
+
+- Upgrade to WizCLI V1
+- Update Trivy installation to version 0.69.2
+- Remove aquasec trivy for now
+- Mitigate aws lambda update-function-code exposing environment variables
+- Replace PyMuPDF with pdf2image for license compatibility
+
 ## [1.1.0] - 2026-01-23
 
 ### Added

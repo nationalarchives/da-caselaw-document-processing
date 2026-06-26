@@ -48,11 +48,29 @@ If you need to update dependencies, run `poetry update`; see [pyproject.toml](do
 
 ### 5. Development Guidelines
 
-Ensure all tests pass locally before opening a PR via `./run-tests.sh`
+Ensure all tests pass locally before opening a PR via `./script/test`
 
 Follow repo and code style guidelines.
 
 Document new environment variables or requirements in the README.
+
+## Release process
+
+1. Update the code
+   - Create a branch `release/v{major}.{minor}.{patch}`
+   - Update the version number in `document_cleanser_lambda/lambda_function.py`
+   - Update `CHANGELOG.md` for the release
+   - Commit and push
+   - Open a PR from that branch to main
+   - Get approval on the PR
+1. Create a GitHub Release
+   - Create a new tag on main with the same version number.
+   - Generate release notes
+   - Publish the release
+1. Deploy to production
+   - Go to the [docker-build-and-deploy action](https://github.com/nationalarchives/da-caselaw-document-processing/actions/workflows/docker-build-and-deploy.yml)
+   - Run a workflow using the newly tagged released against production
+   - Get approval for the action
 
 ## Deployment
 
@@ -61,4 +79,5 @@ Document new environment variables or requirements in the README.
 [Detailed CI documentation](docs/ci.md)
 
 - Changes to the `main` branch are deployed to staging.
-- Creating a new Github version deploys to production.
+- Creating a new Github version and running a GitHub action is required for deploying to
+  production.
