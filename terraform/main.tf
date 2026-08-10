@@ -725,11 +725,6 @@ resource "aws_lambda_event_source_mapping" "sqs_to_lambda" {
   # before the message goes to the DLQ (configured in SQS redrive_maximum_receives)
   function_response_types = ["ReportBatchItemFailures"] # Enable partial batch failures
 
-  # Scaling Configuration
-  scaling_config {
-    maximum_concurrency = 5 # Limit concurrent executions to prevent overwhelming Lambda
-  }
-
   depends_on = [
     aws_lambda_permission.allow_sqs_invoke,
     module.document_processing_queue

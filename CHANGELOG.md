@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 It is part of the [TRE template repository](https://github.com/nationalarchives/da-tre-template)
 
+## [1.1.2] - 2026-08-10
+
+### Removed
+
+- Removed unnecessary maximum concurrency setting of the SQS trigger of the cleanser lambda
+
 ## [1.1.2] - 2026-06-26
 
 ### Added
