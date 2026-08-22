@@ -14,7 +14,7 @@ boto3 = "1.43.75"
 pdf2image = "1.17.0"
 Pillow = "12.3.0"
 filetype = "1.2.0"
-python-dotenv = "1.2.2"
+python-dotenv = "1.2.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "9.1.1"
