@@ -80,7 +80,7 @@ def handle_one_record(record, s3, logger) -> None:
         return
 
     output_bytes = clean_module.clean(file_content)
-    if clean_module.compare(file_content, output_bytes) == False:  # noqa: E712
+    if clean_module.compare(file_content, output_bytes) == False:
         msg = f"S3 key {object_key} was visually different after cleaning."
         raise VisuallyDifferentError(msg)
 
