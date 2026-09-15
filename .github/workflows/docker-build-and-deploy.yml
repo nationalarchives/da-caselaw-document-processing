@@ -23,7 +23,7 @@ on:
 jobs:
   build-deploy:
     if: ${{ github.event.inputs.environment != 'production' || startsWith(github.ref, 'refs/tags/v') }}
-    uses: ./.github/workflows/_reusable_ecr_deploy.yml
+    uses: $/.github/workflows/_reusable_ecr_deploy.yml
     with:
       image_tag: ${{ github.event.inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v') && github.ref_name || github.sha }}
       ref: ${{ github.ref_name }}
