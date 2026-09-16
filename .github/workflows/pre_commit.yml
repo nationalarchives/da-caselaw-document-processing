@@ -37,7 +37,7 @@ jobs:
 
       - uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef # v6.3.1
         with:
-          tflint_version: v0.61.0
+          tflint_version: v0.64.0
           cache: true
           checksum: 9cd3106c7b74f83cbcd90e0593dfaa1ce14dc5260fe32d946915fd0004aec2f4 # pragma: allowlist secret
 
