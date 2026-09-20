@@ -36,7 +36,7 @@ repos:
           - boto3-stubs[s3,sns]==1.43.97
 
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.9.7
+    rev: v3.9.8
     hooks:
       - id: prettier
         types_or: [yaml, json, markdown]
