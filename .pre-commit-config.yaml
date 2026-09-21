@@ -59,7 +59,7 @@ repos:
       - id: python-safety-dependencies-check
         language: python
         additional_dependencies:
-          - poetry_plugin_export==1.10.0
+          - poetry_plugin_export==1.10.1
           - packaging==26.3
 
   - repo: https://github.com/renovatebot/pre-commit-hooks
