@@ -33,7 +33,7 @@ repos:
       - id: mypy
         language: python
         additional_dependencies:
-          - boto3-stubs[s3,sns]==1.43.100
+          - boto3-stubs[s3,sns]==1.43.101
 
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.9.9
