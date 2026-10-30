@@ -18,7 +18,7 @@ python-dotenv = "1.2.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "9.1.1"
-moto = {extras = ["s3"], version = "5.2.4"}
+moto = {extras = ["s3"], version = "5.2.5"}
 
 [build-system]
 requires = ["poetry-core"]
